@@ -28,6 +28,7 @@
   let crossFilter = "all";
   let crossSort = "name";
   let onlyDivergent = false;
+  let evalFilter = "all";
   const openCrits = {};
   let stopCamera = null;
   let shareIndex = 0;
@@ -86,6 +87,24 @@
   }
 
   const candById = (ep, id) => ep.candidates.find(c => c.id === id);
+
+  /* Avancement d'une fiche. Les données reprises d'une préparation ne comptent pas
+     comme un début d'évaluation : le co-évaluateur a encore son AFL1 à faire. */
+  const PROGRESS = {
+    todo:{label:"Pas commencé"}, partial:{label:"Partiel"}, complete:{label:"Complet"}, done:{label:"Terminé"}
+  };
+  function progressOf(ev) {
+    const s = C.scores(ev);
+    const pre = ev?.pre && !ev.pre.unlocked ? ev.pre : null;
+    const own = GRID.filter(c => ev?.v?.[c.id] != null && !pre?.crits.includes(c.id)).length;
+    const state = ev?.done ? "done" : s.complete ? "complete" : own || (!pre && C.isFilled(ev)) ? "partial" : "todo";
+    return {state, filled:s.filled, s};
+  }
+  /* Pastille dessinée (pas de glyphe : ◐ s'affiche mal sur certains téléphones),
+     remplie selon la part des critères notés ; cadenas pour une fiche terminée. */
+  const ring = (state, filled) => state === "done" ? `<span class="ce-lock-icon" aria-hidden="true">🔒</span>`
+    : `<span class="ce-ring ${state}" style="--f:${state === "complete" ? 100 : state === "todo" ? 0 : Math.max(12, filled / GRID.length * 100)}%" aria-hidden="true"></span>`;
+  const minibar = filled => `<span class="ce-minibar" aria-hidden="true"><span style="width:${filled / GRID.length * 100}%"></span></span>`;
   const log = (ep, entry) => C.logHistory(ep, entry, db.me);
   const hasContent = ep => ep.candidates.some(c => C.isFilled(C.get(ep.mine, c.id))) || Object.keys(ep.others).length || Object.keys(ep.final).length;
   const unsaved = ep => hasContent(ep) && ep.backupHash !== C.contentHash(ep);
@@ -203,14 +222,19 @@
     const dis = locked ? " disabled" : "";
     const pre = ev.pre && !ev.pre.unlocked ? ev.pre : null;
 
-    const list = ep.candidates.map(c => {
-      const e = C.get(ep.mine, c.id);
-      const sc = C.scores(e);
-      const state = e?.done ? "done" : sc.complete ? "complete" : sc.filled ? "partial" : "";
-      const right = e?.done ? `🔒 ${fmt(sc.total)}` : sc.complete ? fmt(sc.total) + "/20" : sc.filled + "/" + GRID.length;
-      return `<button type="button" class="ce-cand ${state}${c.id === cand.id ? " current" : ""}" data-act="pick" data-id="${esc(c.id)}">
-        <span>${esc(c.name)}${c.classroom ? ` <i>${esc(c.classroom)}</i>` : ""}</span><small>${right}</small></button>`;
+    const progress = ep.candidates.map(c => ({c, p:progressOf(C.get(ep.mine, c.id))}));
+    const counts = Object.fromEntries(Object.keys(PROGRESS).map(k => [k, progress.filter(x => x.p.state === k).length]));
+    if (evalFilter !== "all" && !counts[evalFilter]) evalFilter = "all";
+    const list = progress.filter(x => evalFilter === "all" || x.p.state === evalFilter).map(({c, p}) => {
+      const meta = PROGRESS[p.state];
+      const right = p.state === "done" || p.state === "complete" ? fmt(p.s.total) + "/20" : p.filled + "/" + GRID.length;
+      return `<button type="button" class="ce-cand ${p.state}${c.id === cand.id ? " current" : ""}" data-act="pick" data-id="${esc(c.id)}" aria-label="${esc(c.name)} : ${meta.label}, ${p.filled} critère(s) sur ${GRID.length}">
+        <span class="ce-pg-icon">${ring(p.state, p.filled)}</span>
+        <span class="ce-cand-name">${esc(c.name)}${c.classroom ? ` <i>${esc(c.classroom)}</i>` : ""}</span>
+        <span class="ce-cand-right"><small>${right}</small>${p.state === "done" ? "" : minibar(p.filled)}</span></button>`;
     }).join("");
+    const legend = Object.entries(PROGRESS).map(([k, m]) => `<button type="button" class="ce-pg-chip ${k}${evalFilter === k ? " on" : ""}" data-act="eval-filter" data-filter="${k}" aria-pressed="${evalFilter === k}"${counts[k] ? "" : " disabled"}>
+      ${ring(k, GRID.length / 2)} ${counts[k]} <small>${m.label}</small></button>`).join("");
 
     const choice = (field, options, label) => {
       const fixed = pre?.choices.includes(field);
@@ -243,7 +267,10 @@
     const part = (val, p) => val != null ? fmt(val) : p != null ? fmt(p) + "…" : "—";
 
     main.innerHTML = `<div class="ce-eval">
-      <aside class="ce-list"><div class="ce-list-head">${ep.candidates.length} candidats · évaluation de <b>${esc(db.me)}</b></div>${list}</aside>
+      <aside class="ce-list"><div class="ce-list-head">${ep.candidates.length} candidats · évaluation de <b>${esc(db.me)}</b></div>
+        <div class="ce-pg-legend">${legend}</div>
+        ${evalFilter !== "all" ? `<button type="button" class="ce-link" data-act="eval-filter" data-filter="all">Afficher tous les candidats</button>` : ""}
+        ${list}</aside>
       <section class="ce-sheet">
         <div class="ce-card ce-cand-head">
           <div class="ce-nav">
@@ -676,6 +703,12 @@
       const totals = r.entries.map(x => x.ev ? C.scores(x.ev).total : null);
       const known = totals.filter(t => t != null);
       const gap = known.length > 1 ? Math.max(...known) - Math.min(...known) : null;
+      const cellOf = x => {
+        const p = progressOf(x.ev);
+        const label = p.state === "todo" ? "Pas évalué" : p.state === "partial" ? `Partiel : ${p.filled} critère(s) sur ${GRID.length}` : PROGRESS[p.state].label;
+        const text = p.state === "todo" ? "—" : p.state === "partial" ? `${p.filled}/${GRID.length}` : fmt(p.s.total);
+        return `<td class="num"><span class="ce-pg ${p.state}" title="${label}">${ring(p.state, p.filled)} ${text}<span class="ce-sr">${label}</span></span></td>`;
+      };
       const degCount = GRID.filter(cr => r.h.crits[cr.id].mustDecide).length;
       const detail = degCount ? ` <small>${degCount} critère(s)</small>` : st({r}) === "points" ? ` <small>${GRID.filter(cr => r.h.crits[cr.id].status === "points").length} critère(s)</small>` : "";
       const note = r.validated
@@ -684,7 +717,7 @@
         : `<span class="ce-prov">—</span><small>${r.h.pending ? r.h.pending + " à trancher" : r.h.evaluators < 2 ? "en attente" : "incomplète"}</small>`;
       return `<tr data-act="cross-open" data-id="${esc(c.id)}">
         <td><b>${esc(c.name)}</b>${c.classroom ? ` <small>${esc(c.classroom)}</small>` : ""}</td>
-        ${totals.map(t => `<td class="num">${fmt(t)}</td>`).join("")}
+        ${r.entries.map(cellOf).join("")}
         <td class="num${gap >= 2 ? " ce-big-gap" : ""}">${fmt(gap)}</td>
         <td>${tag(r.h.status)}${detail}</td>
         <td class="num ce-note">${note}</td></tr>`;
@@ -709,7 +742,8 @@
         <button type="button" class="${crossFilter === "todo" ? "ce-primary" : ""}" data-act="filter" data-filter="todo">⚠️ Candidats à harmoniser (${todo})</button>
         <label class="ce-inline">Ordre <select id="ceSort"><option value="name"${crossSort === "name" ? " selected" : ""}>alphabétique</option><option value="priority"${crossSort === "priority" ? " selected" : ""}>par priorité</option></select></label>
       </div>
-      <p class="ce-hint">Note provisoire : décision du jury, sinon moyenne au ¼ de point quand le degré est commun. En cas de degrés différents, rien n'est proposé : le jury tranche. Touchez un candidat pour harmoniser.</p>
+      <p class="ce-hint">Colonnes des évaluateurs : ${ring("todo", 0)} pas évalué · ${ring("partial", 5)} partiel (critères notés) · ${ring("complete", 9)} complet · 🔒 terminé.
+      Note provisoire : décision du jury, sinon moyenne au ¼ de point quand le degré est commun. En cas de degrés différents, rien n'est proposé : le jury tranche. Touchez un candidat pour harmoniser.</p>
       <div class="ce-table"><table>
         <thead><tr><th>Candidat</th>${names.map(nm => `<th class="num">${esc(nm)}</th>`).join("")}<th class="num">Écart</th><th>Croisement</th><th class="num">Note /20</th></tr></thead>
         <tbody>${rows || `<tr><td colspan="${names.length + 4}" class="ce-hint">Aucun candidat pour ce filtre.</td></tr>`}</tbody></table></div>
@@ -1181,6 +1215,7 @@
         break;
       }
       case "candidates": if (ep) openCandidates(ep); break;
+      case "eval-filter": evalFilter = el.dataset.filter; render(); break;
       case "pick": currentId = el.dataset.id; render(); window.scrollTo({top:0, behavior:"smooth"}); break;
       case "step": {
         const i = ep.candidates.findIndex(c => c.id === currentId) + Number(el.dataset.step);
