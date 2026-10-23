@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#172554">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="coeval.css?v=1">
+  <title>Co-évaluation Bac EPS</title>
+</head>
+<body>
+
+<header class="ce-header">
+  <div class="ce-brand"><h1>Co-évaluation Bac</h1><p>Musculation · CA5 · chacun note de son côté, puis on croise</p></div>
+  <button id="ceMe" type="button" class="ce-me">👤 Évaluateur</button>
+</header>
+
+<div class="ce-bar">
+  <select id="ceEpreuve" aria-label="Épreuve"></select>
+  <button id="ceNewEpreuve" type="button">+ Nouvelle épreuve</button>
+  <button id="ceCandidates" type="button">👥 Candidats</button>
+</div>
+
+<nav class="ce-tabs" role="tablist">
+  <button type="button" data-tab="eval" class="active">1 · Évaluer</button>
+  <button type="button" data-tab="share">2 · Échanger</button>
+  <button type="button" data-tab="cross">3 · Croiser</button>
+</nav>
+
+<main id="ceMain"></main>
+
+<dialog id="ceDialog"></dialog>
+<div id="ceToast" class="ce-toast hidden"></div>
+
+<script src="jsQR.js"></script>
+<script src="qrcode.js"></script>
+<script src="coeval.js?v=1"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).catch(() => {});
+  }
+</script>
+</body>
+</html>
