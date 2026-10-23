@@ -351,3 +351,70 @@ test("CSV Pronote : en-tête, classe, séparateur, guillemets", () => {
   assert.deepEqual(r.names, ["DUPONT; Léa", "MARTIN Hugo"]);
   assert.deepEqual(r.classes, ["TG1", "TG2"]);
 });
+
+test("préparation : noms, répartition, AFL2/AFL3 transmis, jamais l'AFL1", () => {
+  const names = Array.from({length:10}, (_, i) => "ELEVE " + i);
+  const a = ep(names);
+  a.candidates.forEach(c => { c.classroom = "TG1"; a.mine[c.id] = evalOf(full(), {split:"6-2"}); });
+  assert.equal(C.prepReady(a), 10);
+  const parts = C.prepParts(a, "Alice", 1);
+  assert.equal(parts.length, 2);
+  for (const t of parts) {
+    for (const r of JSON.parse(t.slice(8)).r) {
+      C.GRID.forEach((cr, i) => { if (!C.PREP_CRITS.includes(cr.id)) assert.equal(r[4][i], 0, cr.id); });
+    }
+  }
+  const b = ep([]);
+  let res = C.importPayloads(b, C.parseCodes(parts[1]).payloads, "Bruno");
+  assert.equal(res.done, false);
+  res = C.importPayloads(b, C.parseCodes(parts[0]).payloads, "Bruno");
+  assert.equal(res.done, true);
+  assert.equal(res.prep, true);
+  assert.equal(b.candidates.length, 10);
+  assert.equal(b.candidates[0].classroom, "TG1");
+  const ev = b.mine[b.candidates[0].id];
+  assert.equal(ev.split, "6-2");
+  assert.deepEqual(Object.keys(ev.v).sort(), ["projet", "recueil", "role"]);
+  assert.deepEqual(ev.pre.crits, C.PREP_CRITS);
+  assert.equal(Object.keys(b.others).length, 0, "la préparation n'est pas une évaluation reçue");
+  assert.match(C.mergeMessage(res), /Préparation de Alice reçue/);
+});
+
+test("préparation : valeurs saisies par le co-évaluateur et fiches terminées conservées", () => {
+  const a = ep(["A", "B", "C"]);
+  a.candidates.forEach(c => { a.mine[c.id] = evalOf(full({projet:2}), {split:"4-4"}); });
+  const b = ep(["A", "B", "C"]);
+  const [ca, cb] = b.candidates;
+  b.mine[ca.id] = evalOf({projet:1}, {split:"", theme:"", role:""});
+  b.mine[cb.id] = evalOf(full(), {done:true});
+  const res = C.importPayloads(b, C.parseCodes(C.prepParts(a, "Alice")[0]).payloads, "Bruno");
+  assert.equal(res.kept, 1);
+  assert.equal(res.locked, 1);
+  assert.equal(b.mine[ca.id].v.projet, 1, "valeur du co-évaluateur gardée");
+  assert.equal(b.mine[ca.id].v.recueil, 1.5);
+  assert.ok(!b.mine[ca.id].pre.crits.includes("projet"));
+  assert.equal(b.mine[cb.id].v.projet, 1.5, "fiche terminée intacte");
+  // Nouvelle préparation corrigée : les champs repris sont mis à jour.
+  a.mine[a.candidates[2].id].v.projet = 1;
+  a.mine[a.candidates[2].id].updatedAt = Date.now() + 5000;
+  C.importPayloads(b, C.parseCodes(C.prepParts(a, "Alice")[0]).payloads, "Bruno");
+  assert.equal(b.mine[b.candidates[2].id].v.projet, 1);
+  // Données reprises déverrouillées puis modifiées : une nouvelle préparation ne les écrase pas.
+  const evc = b.mine[b.candidates[2].id];
+  evc.pre.unlocked = true;
+  evc.v.projet = .5;
+  a.mine[a.candidates[2].id].updatedAt = Date.now() + 10000;
+  C.importPayloads(b, C.parseCodes(C.prepParts(a, "Alice")[0]).payloads, "Bruno");
+  assert.equal(evc.v.projet, .5);
+  assert.match(C.importPayloads(b, C.parseCodes(C.prepParts(a, "Bruno")[0]).payloads, "bruno").error, /propre préparation/);
+});
+
+test("préparation par fichier", () => {
+  const a = ep(["A"]);
+  a.mine[a.candidates[0].id] = evalOf(full());
+  const b = ep([]);
+  const res = C.importPayloads(b, [C.fileToPayload(C.exportPrepFile(a, "Alice"))], "Bruno");
+  assert.equal(res.prep, true);
+  assert.equal(b.mine[b.candidates[0].id].v.role, 1.5);
+  assert.equal(b.mine[b.candidates[0].id].v.amp, undefined);
+});

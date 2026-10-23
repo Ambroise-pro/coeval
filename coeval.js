@@ -31,6 +31,7 @@
   const openCrits = {};
   let stopCamera = null;
   let shareIndex = 0;
+  let prepIndex = 0;
   let pendingRestore = null;
 
   /* =========================
@@ -151,7 +152,7 @@
     renderNotice(ep);
     const main = $("ceMain");
     if (!db.me) { main.innerHTML = welcomeHTML(); return; }
-    if (!ep) { main.innerHTML = noEpreuveHTML(); return; }
+    if (!ep) { if (tab === "share") renderShare(main, null); else main.innerHTML = noEpreuveHTML(); return; }
     if (tab === "eval") renderEval(main, ep);
     else if (tab === "share") renderShare(main, ep);
     else renderCross(main, ep);
@@ -171,10 +172,12 @@
   function noEpreuveHTML() {
     return `<section class="ce-card ce-welcome">
       <h2>Crée une épreuve</h2>
-      <p>Ex. « Bac Musculation · Terminale · juin 2026 ». Ajoute ensuite la liste des candidats
-      (ou récupère-la en scannant le QR de ton collègue dans l'onglet « Échanger »).</p>
+      <p>Ex. « Bac Musculation · Terminale · juin 2026 ». Ajoute ensuite la liste des candidats.</p>
+      <p><b>Tu es co-évaluateur ?</b> Récupère la préparation de ton collègue : la liste des candidats,
+      les répartitions et les notes AFL2/AFL3 arrivent toutes seules, il te restera l'AFL1.</p>
       <div class="ce-actions">
         <button type="button" class="ce-primary" data-act="new-epreuve">+ Nouvelle épreuve</button>
+        <button type="button" class="ce-primary" data-act="go-receive">📥 Je suis co-évaluateur : recevoir la préparation</button>
         <label class="ce-button">📂 Restaurer une sauvegarde<input id="ceRestore" type="file" accept=".json,application/json" hidden></label>
       </div>
     </section>`;
@@ -198,6 +201,7 @@
     const idx = ep.candidates.indexOf(cand);
     const locked = !!ev.done;
     const dis = locked ? " disabled" : "";
+    const pre = ev.pre && !ev.pre.unlocked ? ev.pre : null;
 
     const list = ep.candidates.map(c => {
       const e = C.get(ep.mine, c.id);
@@ -208,9 +212,12 @@
         <span>${esc(c.name)}${c.classroom ? ` <i>${esc(c.classroom)}</i>` : ""}</span><small>${right}</small></button>`;
     }).join("");
 
-    const choice = (field, options, label) => `<div class="ce-choice"><span>${label}</span>${
-      Object.entries(options).map(([k, v]) => `<button type="button" class="${ev[field] === k ? "on" : ""}" data-act="set" data-field="${field}" data-value="${k}" aria-pressed="${ev[field] === k}"${dis}>${esc(v)}</button>`).join("")
-    }</div>`;
+    const choice = (field, options, label) => {
+      const fixed = pre?.choices.includes(field);
+      return `<div class="ce-choice"><span>${label}${fixed ? " 🗂️" : ""}</span>${
+        Object.entries(options).map(([k, v]) => `<button type="button" class="${ev[field] === k ? "on" : ""}" data-act="set" data-field="${field}" data-value="${k}" aria-pressed="${ev[field] === k}"${locked || fixed ? " disabled" : ""}>${esc(v)}</button>`).join("")
+      }</div>`;
+    };
 
     let groups = "", lastGroup = "";
     GRID.forEach(crit => {
@@ -219,10 +226,14 @@
         lastGroup = crit.group;
         groups += `<div class="ce-group"><h3>${esc(crit.afl === "AFL1" ? `AFL1 · ${crit.group}` : crit.group)}</h3>`;
       }
-      groups += critHTML(crit, ev, locked);
+      groups += pre?.crits.includes(crit.id) ? preCritHTML(crit, ev) : critHTML(crit, ev, locked);
     });
     groups += "</div>";
 
+    const preBar = pre
+      ? `<div class="ce-lock pre"><span>🗂️ Répartition, thème, rôle et AFL2/AFL3 évalués avant l'épreuve par <b>${esc(pre.by)}</b>. À toi d'évaluer l'<b>AFL1</b>.</span>
+          ${locked ? "" : `<button type="button" class="ce-link" data-act="unlock-pre">Modifier ces données</button>`}</div>`
+      : ev.pre?.unlocked ? `<div class="ce-lock open">✏️ Données de préparation de ${esc(ev.pre.by)} déverrouillées : tes modifications seront visibles au croisement.</div>` : "";
     const lockBar = locked
       ? `<div class="ce-lock"><span>🔒 Évaluation terminée le ${when(ev.doneAt)}. Les notes sont verrouillées.</span>
           <button type="button" data-act="reopen">Modifier mon évaluation</button></div>`
@@ -241,6 +252,7 @@
             <button type="button" data-act="step" data-step="1" aria-label="Candidat suivant" ${idx === ep.candidates.length - 1 ? "disabled" : ""}>→</button>
           </div>
           ${lockBar}
+          ${preBar}
           ${choice("theme", THEMES, "Thème")}
           ${choice("split", {"4-4":"AFL2 4 · AFL3 4", "6-2":"AFL2 6 · AFL3 2", "2-6":"AFL2 2 · AFL3 6"}, "Répartition")}
           ${choice("role", ROLES, "Rôle AFL3")}
@@ -284,6 +296,15 @@
     </div>`;
   }
 
+  /* Critère évalué avant l'épreuve par le collègue : affichage compact, non modifiable ici. */
+  function preCritHTML(crit, ev) {
+    const v = ev.v[crit.id];
+    const d = C.degreeOf(crit, v, ev.d[crit.id]);
+    const desc = C.descOf(crit, ev.role);
+    return `<div class="ce-crit filled ce-crit-pre"><div class="ce-crit-head"><b>${esc(crit.label)}</b><span>${dot(crit, d)} <strong>${fmt(v)}</strong> /${crit.max}</span></div>
+      <p class="ce-hint">🗂️ Évalué avant l'épreuve par ${esc(ev.pre.by)}${desc && d ? ` : ${esc(desc[d - 1])}` : ""}</p></div>`;
+  }
+
   /* Modification d'une fiche déjà terminée une fois : consignée, sans toucher à la version initiale. */
   function logEdit(ep, cand, ev, field, from, to) {
     if (!ev.initial || from === to) return;
@@ -293,7 +314,7 @@
   function setValue(ep, critId, deg, value) {
     const cand = candById(ep, currentId);
     const ev = evalOf(ep, currentId);
-    if (ev.done) return;
+    if (ev.done || (ev.pre && !ev.pre.unlocked && ev.pre.crits.includes(critId))) return;
     const crit = C.critById(critId);
     const before = ev.v[critId] != null ? `D${C.degreeOf(crit, ev.v[critId], ev.d[critId])} ${fmt(ev.v[critId])}` : "";
     const range = crit.deg[deg - 1];
@@ -353,10 +374,17 @@
     return qr.createSvgTag({cellSize:4, margin:4, scalable:true});
   }
 
-  function renderShare(main, ep) {
-    const parts = ep.candidates.length ? C.qrParts(ep, db.me) : [];
-    shareIndex = Math.min(shareIndex, Math.max(0, parts.length - 1));
-    const others = Object.entries(ep.others);
+  function qrBlock(parts, index, act) {
+    return parts.length ? `<div class="ce-qr">${qrImage(parts[index])}</div>
+      <div class="ce-nav ce-qr-nav">
+        <button type="button" data-act="${act}" data-step="-1" aria-label="QR précédent" ${index === 0 ? "disabled" : ""}>←</button>
+        <b>QR ${index + 1} / ${parts.length}</b>
+        <button type="button" data-act="${act}" data-step="1" aria-label="QR suivant" ${index >= parts.length - 1 ? "disabled" : ""}>→</button>
+      </div>` : `<p class="ce-hint">Ajoute des candidats pour générer un QR.</p>`;
+  }
+
+  function receiveHTML(ep) {
+    const others = ep ? Object.entries(ep.others) : [];
     const received = others.map(([name, o]) => {
       const rows = Object.values(o.rows).filter(C.isFilled);
       const done = rows.filter(r => r.done).length;
@@ -372,37 +400,69 @@
         <small>Dernière réception : ${when(o.lastAt || o.at)}</small> ${lots}
         <button type="button" class="ce-link" data-act="drop-other" data-name="${esc(name)}">Retirer</button></li>`;
     }).join("");
+    let prep = "";
+    if (ep?.prepFrom) {
+      const pf = ep.prepFrom;
+      const got = pf.parts ? [...pf.parts.got].sort((a, b) => a - b) : [];
+      const missing = pf.parts ? Array.from({length:pf.parts.total}, (_, i) => i + 1).filter(n => !got.includes(n)) : [];
+      prep = `<p class="ce-prep-info">🗂️ Préparation reçue de <b>${esc(pf.by)}</b> le ${when(pf.lastAt)}
+        ${missing.length ? `<span class="ce-warn">· QR manquants : ${missing.join(", ")} sur ${pf.parts.total}</span>` : `<span class="ce-ok-text">· complète ✓</span>`}</p>`;
+    }
+    return `<section class="ce-card">
+      <h2>📥 Recevoir d'un collègue</h2>
+      <p class="ce-hint">Un seul scanner pour tout : la <b>préparation</b> avant l'épreuve (noms, répartitions, AFL2/AFL3) ou son <b>évaluation</b> pour le croisement.</p>
+      <div class="ce-camera"><video id="ceVideo" playsinline muted class="hidden"></video></div>
+      <p id="ceCamStatus" class="ce-hint" aria-live="polite"></p>
+      <div class="ce-actions">
+        <button type="button" class="ce-primary" data-act="scan">📷 Scanner son QR</button>
+        <label class="ce-button">📂 Importer un fichier<input id="ceFile" type="file" accept=".json,application/json" hidden></label>
+      </div>
+      <details><summary>Coller un code</summary>
+        <textarea id="cePaste" rows="4" placeholder="Colle ici le ou les codes COEVAL1:…"></textarea>
+        <button type="button" data-act="paste">Valider</button>
+      </details>
+      ${prep}
+      ${ep ? `<h3>Évaluations reçues</h3>
+      ${others.length ? `<ul class="ce-received">${received}</ul>` : `<p class="ce-hint">Rien reçu pour l'instant.</p>`}` : ""}
+    </section>`;
+  }
+
+  function renderShare(main, ep) {
+    if (!ep) {
+      main.innerHTML = `<div class="ce-share">${receiveHTML(null)}
+        <section class="ce-card"><h2>Pas encore d'épreuve</h2>
+          <p>Co-évaluateur : scanne le QR de <b>préparation</b> de ton collègue. L'épreuve, la liste des candidats,
+          les répartitions et les notes AFL2/AFL3 sont créées automatiquement ; il te restera à évaluer l'AFL1.</p>
+          <div class="ce-actions"><button type="button" data-act="new-epreuve">+ Créer plutôt une épreuve</button></div></section></div>`;
+      return;
+    }
+    const parts = ep.candidates.length ? C.qrParts(ep, db.me) : [];
+    shareIndex = Math.min(shareIndex, Math.max(0, parts.length - 1));
+    const prepParts = ep.candidates.length ? C.prepParts(ep, db.me) : [];
+    prepIndex = Math.min(prepIndex, Math.max(0, prepParts.length - 1));
+    const ready = C.prepReady(ep);
     main.innerHTML = `<div class="ce-share">
+      <section class="ce-card ce-prep">
+        <h2>🗂️ Préparer le co-évaluateur <small>avant l'épreuve</small></h2>
+        <p>Transmet la liste des candidats, la <b>répartition AFL2/AFL3</b>, le thème, le rôle et les <b>notes AFL2 et AFL3</b>
+        déjà évaluées. <b>Jamais tes notes AFL1</b> : le co-évaluateur les attribue seul pendant l'épreuve.</p>
+        <p class="${ready < ep.candidates.length ? "ce-warn" : "ce-ok-text"}">${ready} candidat(s) sur ${ep.candidates.length} avec répartition, rôle et AFL2/AFL3 renseignés${ready < ep.candidates.length ? " (les autres partent incomplets)" : " ✓"}.</p>
+        ${qrBlock(prepParts, prepIndex, "prep-step")}
+        <div class="ce-actions">
+          <button type="button" data-act="prep-download">💾 Fichier de préparation</button>
+          <button type="button" data-act="prep-copy">📋 Copier le code</button>
+        </div>
+      </section>
+      ${receiveHTML(ep)}
       <section class="ce-card">
-        <h2>📤 Envoyer mon évaluation</h2>
-        <p>Ton collègue scanne ${parts.length > 1 ? `les <b>${parts.length} QR</b> (dans n'importe quel ordre)` : "ce QR"} depuis son onglet « Échanger ».
-        Le QR contient aussi la liste des candidats : il sert à la partager avant l'épreuve.</p>
-        ${parts.length ? `<div class="ce-qr">${qrImage(parts[shareIndex])}</div>
-        <div class="ce-nav ce-qr-nav">
-          <button type="button" data-act="qr-step" data-step="-1" aria-label="QR précédent" ${shareIndex === 0 ? "disabled" : ""}>←</button>
-          <b>QR ${shareIndex + 1} / ${parts.length}</b>
-          <button type="button" data-act="qr-step" data-step="1" aria-label="QR suivant" ${shareIndex >= parts.length - 1 ? "disabled" : ""}>→</button>
-        </div>` : `<p class="ce-hint">Ajoute des candidats pour générer un QR.</p>`}
+        <h2>📤 Envoyer mon évaluation <small>pour le croisement</small></h2>
+        <p>Ton collègue scanne ${parts.length > 1 ? `les <b>${parts.length} QR</b> (dans n'importe quel ordre)` : "ce QR"} depuis son onglet « Échanger ».</p>
+        ${qrBlock(parts, shareIndex, "qr-step")}
         <div class="ce-actions">
           <button type="button" data-act="download">💾 Fichier (avec remarques)</button>
           <button type="button" data-act="copy-code">📋 Copier le code</button>
         </div>
         <p class="ce-hint">Pour un seul candidat : bouton « QR de ce candidat » en bas de sa fiche.</p>
-      </section>
-      <section class="ce-card">
-        <h2>📥 Recevoir l'évaluation d'un collègue</h2>
-        <div class="ce-camera"><video id="ceVideo" playsinline muted class="hidden"></video></div>
-        <p id="ceCamStatus" class="ce-hint" aria-live="polite"></p>
-        <div class="ce-actions">
-          <button type="button" class="ce-primary" data-act="scan">📷 Scanner son QR</button>
-          <label class="ce-button">📂 Importer un fichier<input id="ceFile" type="file" accept=".json,application/json" hidden></label>
-        </div>
-        <details><summary>Coller un code</summary>
-          <textarea id="cePaste" rows="4" placeholder="Colle ici le ou les codes COEVAL1:…"></textarea>
-          <button type="button" data-act="paste">Valider</button>
-        </details>
-        <h3>Évaluations reçues</h3>
-        ${others.length ? `<ul class="ce-received">${received}</ul>` : `<p class="ce-hint">Rien reçu pour l'instant.</p>`}
       </section>
       <section class="ce-card">
         <h2>💾 Sauvegarde de l'épreuve</h2>
@@ -477,10 +537,20 @@
   function importText(text) {
     const parsed = C.parseCodes(text);
     if (parsed.error) return {done:false, message:parsed.error};
-    const ep = active() || newEpreuve(parsed.payloads[0].title || "Épreuve importée");
-    const res = C.importPayloads(ep, parsed.payloads, db.me);
-    save();
+    const res = importInto(parsed.payloads, parsed.payloads[0].title);
     return {...res, done:!res.error && res.done, message:C.mergeMessage(res)};
+  }
+
+  /* Importe dans l'épreuve active, ou dans une nouvelle si aucune n'existe (co-évaluateur
+     qui reçoit la préparation). Une préparation complète ouvre directement « Évaluer ». */
+  function importInto(payloads, title) {
+    const created = !active();
+    const ep = active() || newEpreuve(title || "Épreuve importée");
+    const res = C.importPayloads(ep, payloads, db.me);
+    if (res.error && created) db.epreuves = db.epreuves.filter(e => e !== ep);
+    if (res.prep && res.done && !res.error) { tab = "eval"; currentId = null; }
+    save();
+    return res;
   }
 
   function downloadJSON(name, data, title) {
@@ -520,10 +590,8 @@
       let d;
       try { d = JSON.parse(text); } catch (e) { toast("Fichier non reconnu."); return; }
       if (d?.type === "coeval-backup") { openRestore(d); return; }
-      if (d?.type !== "coeval-musculation") { toast("Fichier non reconnu."); return; }
-      const ep = active() || newEpreuve(d.title || "Épreuve importée");
-      const res = C.importPayloads(ep, [C.fileToPayload(d)], db.me);
-      save();
+      if (d?.type !== "coeval-musculation" && d?.type !== "coeval-preparation") { toast("Fichier non reconnu."); return; }
+      const res = importInto([C.fileToPayload(d)], d.title);
       toast(C.mergeMessage(res));
       render();
     });
@@ -996,7 +1064,8 @@
   const HISTORY_TYPES = {
     "decision":"Décision sur un critère", "decision-reset":"Retour aux notes initiales", "choice":"Choix retenu",
     "harmonisation-reset":"Harmonisation réinitialisée", "validate":"Note validée", "unvalidate":"Validation annulée",
-    "eval-done":"Fiche terminée", "eval-reopen":"Fiche rouverte", "eval-edit":"Fiche modifiée après validation"
+    "eval-done":"Fiche terminée", "eval-reopen":"Fiche rouverte", "eval-edit":"Fiche modifiée après validation",
+    "prep-unlock":"Données de préparation déverrouillées"
   };
 
   function csvHistory(ep) {
@@ -1120,8 +1189,8 @@
       }
       case "set": {
         const e = evalOf(ep, currentId);
-        if (e.done) return;
         const field = el.dataset.field;
+        if (e.done || (e.pre && !e.pre.unlocked && e.pre.choices.includes(field))) return;
         const value = e[field] === el.dataset.value ? "" : el.dataset.value;
         if (field === "role" && e.role && e.v.role != null && value !== e.role) {
           if (!confirm(`Le critère « Rôle » est déjà noté (${fmt(e.v.role)}) avec la grille « ${ROLES[e.role]} ».\nChanger de rôle conserve cette note, mais elle sera signalée à vérifier avec les nouveaux descripteurs. Continuer ?`)) return;
@@ -1162,6 +1231,21 @@
         break;
       }
       case "qr-step": shareIndex += Number(el.dataset.step); render(); break;
+      case "prep-step": prepIndex += Number(el.dataset.step); render(); break;
+      case "prep-download": downloadJSON(`preparation_${slug(ep.title)}_${slug(db.me)}.json`, C.exportPrepFile(ep, db.me), ep.title); break;
+      case "prep-copy": {
+        const text = C.prepParts(ep, db.me).join("\n");
+        (navigator.clipboard?.writeText(text) || Promise.reject()).then(() => toast("Code de préparation copié."), () => prompt("Copie ce code :", text));
+        break;
+      }
+      case "go-receive": tab = "share"; render(); break;
+      case "unlock-pre": {
+        const e = evalOf(ep, currentId);
+        if (!confirm(`Modifier la répartition, le thème, le rôle ou les notes AFL2/AFL3 évalués par ${e.pre.by} ?\nTes changements apparaîtront comme des écarts au croisement.`)) return;
+        e.pre.unlocked = true;
+        log(ep, {type:"prep-unlock", cand:cand.id, candName:cand.name, from:e.pre.by});
+        save(); render(); break;
+      }
       case "download": download(ep); break;
       case "copy-code": {
         const text = C.qrParts(ep, db.me).join("\n");

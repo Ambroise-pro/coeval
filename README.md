@@ -3,6 +3,12 @@
 Application web (hors connexion) pour co-évaluer l'épreuve de musculation du bac
 à plusieurs évaluateurs, selon la grille FCE Musculation CA5.
 
+0. **Préparer** (avant l'épreuve) — le professeur note la répartition AFL2/AFL3, le thème, le rôle
+   et les critères AFL2/AFL3, puis transmet au co-évaluateur (onglet Échanger, « Préparer le co-évaluateur » :
+   QR, fichier ou code) la liste des candidats et ces données, **jamais ses notes AFL1**.
+   Sur un téléphone vierge, le co-évaluateur choisit « Je suis co-évaluateur : recevoir la préparation » :
+   l'épreuve est créée, ses fiches sont pré-remplies et verrouillées (« Modifier ces données » reste possible),
+   il ne lui reste qu'à évaluer l'AFL1.
 1. **Évaluer** — chaque évaluateur note sur son appareil, sans voir l'autre :
    thème, répartition AFL2/AFL3 (4-4, 6-2, 2-6), rôle AFL3, puis degré et note de chaque critère.
    « Terminer mon évaluation » vérifie la fiche, affiche un récapitulatif, la verrouille et garde
@@ -47,4 +53,6 @@ de sécurité est gardée sous la clé `df-coeval-v1-avant-v2`.
 - `jsQR.js` — lecture des QR ([jsQR](https://github.com/cozmo/jsQR), Apache-2.0)
 - `tests/` — tests du noyau : `node --test tests/*.test.js` (Node 18+, aucune dépendance)
 
-Site statique : aucun build, à publier tel quel (Vercel, GitHub Pages…). La caméra exige HTTPS.
+Site statique : aucun build, à publier tel quel (Vercel, GitHub Pages…). La caméra exige HTTPS
+(fourni d'office par Vercel). Sur Vercel : projet de type « Other », sans commande de build, répertoire racine du dépôt ;
+`.vercelignore` exclut les tests de la publication.

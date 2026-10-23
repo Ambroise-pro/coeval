@@ -88,6 +88,9 @@
 
   const AFL1_IDS = ["amp", "resp", "post", "param", "ress", "regul"];
   const AFL2_IDS = ["projet", "recueil"];
+  /* Évalué avant l'épreuve et transmis au co-évaluateur (préparation) : jamais l'AFL1. */
+  const PREP_CRITS = ["projet", "recueil", "role"];
+  const PREP_CHOICES = ["split", "theme", "role"];
   const SPLITS = {"4-4":[4, 4], "6-2":[6, 2], "2-6":[2, 6]};
   const THEMES = {"1":"Puissance", "2":"Tonification", "3":"Volume"};
   const ROLES = {partenaire:"Partenaire d'entraînement", juge:"Juge"};
@@ -431,13 +434,115 @@
       try { p = JSON.parse(line.slice(QR_PREFIX.length)); }
       catch (e) { return {error:"Code illisible ou incomplet."}; }
       if (!p || typeof p !== "object") return {error:"Code illisible ou incomplet."};
-      payloads.push({v:p.v || 1, title:p.t, by:p.e, at:p.a, batch:p.k, part:p.p, single:!!p.s, rows:p.r});
+      payloads.push({v:p.v || 1, title:p.t, by:p.e, at:p.a, batch:p.k, part:p.p, single:!!p.s, prep:p.m === "prep", rows:p.r});
     }
     return {payloads};
   }
 
   function fileToPayload(d) {
-    return {v:d.version || 1, title:d.title, by:d.by, at:d.at, batch:"file-" + d.at, part:null, single:false, rows:d.rows, comments:d.comments};
+    return {v:d.version || 1, title:d.title, by:d.by, at:d.at, batch:"file-" + d.at, part:null, single:false,
+      prep:d.type === "coeval-preparation", rows:d.rows, comments:d.comments};
+  }
+
+  /* =========================
+     PRÉPARATION DU CO-ÉVALUATEUR
+     Avant l'épreuve : liste des candidats, répartition, thème, rôle et notes
+     AFL2/AFL3 déjà évaluées. Les notes AFL1 ne sont jamais transmises.
+  ========================= */
+
+  function prepRows(ep) {
+    return exportRows(ep).map(r => {
+      if (r.length < 5) return r;
+      const cells = Array.isArray(r[4]) ? r[4].map((c, i) => PREP_CRITS.includes(GRID[i].id) ? c : 0) : 0;
+      const row = [r[0], r[1], r[2], r[3], cells, r[5], 0];
+      if (r[7]) row.push(r[7]);
+      return row;
+    });
+  }
+
+  function prepParts(ep, me, now = Date.now()) {
+    const rows = prepRows(ep);
+    const batch = "p" + hash(JSON.stringify([ep.title, me, rows]));
+    const chunks = [];
+    for (let i = 0; i < Math.max(1, rows.length); i += PER_QR) chunks.push(rows.slice(i, i + PER_QR));
+    return chunks.map((r, i) => QR_PREFIX + JSON.stringify({v:FORMAT_VERSION, m:"prep", t:ep.title, e:me, a:now, k:batch, p:[i + 1, chunks.length], r}));
+  }
+
+  function exportPrepFile(ep, me, now = Date.now()) {
+    return {type:"coeval-preparation", version:FORMAT_VERSION, title:ep.title, by:me, at:now, rows:prepRows(ep)};
+  }
+
+  /* Candidats prêts à transmettre : répartition choisie et AFL2/AFL3 notés. */
+  function prepReady(ep) {
+    return ep.candidates.filter(c => {
+      const ev = get(ep.mine, c.id);
+      return !!ev && !!ev.split && !!ev.role && PREP_CRITS.every(id => ev.v?.[id] != null);
+    }).length;
+  }
+
+  /* Pré-remplit mes fiches avec la préparation reçue. Les champs repris sont notés
+     dans ev.pre (et verrouillés à l'écran). Jamais d'écrasement silencieux : une fiche
+     terminée, une valeur que j'ai saisie moi-même ou une préparation plus ancienne
+     sont conservées et comptées. */
+  function mergePrep(ep, p, me) {
+    const by = String(p.by || "Collègue").trim();
+    if (normName(by) === normName(me)) return {error:"C'est ta propre préparation (même nom d'évaluateur)."};
+    if (RESERVED.test(by)) return {error:"Nom d'évaluateur invalide."};
+    if ((p.v || 1) > FORMAT_VERSION) return {error:"Ces données viennent d'une version plus récente de l'application : mets-la à jour."};
+    if (!Array.isArray(p.rows) || p.rows.some(r => !Array.isArray(r) || typeof r[0] !== "string")) return {error:"Données illisibles."};
+    const added = addCandidates(ep, p.rows.map(r => r[0]), p.rows.map(r => typeof r[7] === "string" ? r[7] : ""));
+    let filled = 0, kept = 0, locked = 0, older = 0;
+    p.rows.forEach(([name, split, theme, role, cells, t]) => {
+      const cand = ep.candidates.find(c => normName(c.name) === normName(name));
+      if (!cand) return;
+      const inc = {split:own(SPLITS, split) ? split : "", theme:own(THEMES, theme) ? theme : "", role:own(ROLES, role) ? role : "", v:{}, d:{}};
+      if (Array.isArray(cells)) GRID.forEach((cr, i) => {
+        if (!PREP_CRITS.includes(cr.id)) return;
+        const m = decodeCell(cr, cells[i]);
+        if (m) { inc.v[cr.id] = m.v; inc.d[cr.id] = m.d; }
+      });
+      if (!inc.split && !inc.theme && !inc.role && !Object.keys(inc.v).length) return;
+      const ev = get(ep.mine, cand.id) || (ep.mine[cand.id] = emptyEval());
+      if (ev.done) { locked++; return; }
+      const time = typeof t === "number" && t > 0 ? t * 1000 : p.at || 0;
+      if (ev.pre && (ev.pre.at || 0) > time) { older++; return; }
+      const prev = ev.pre && !ev.pre.unlocked ? ev.pre : {choices:[], crits:[]};
+      const pre = {by, at:time, choices:[], crits:[]};
+      if (ev.pre?.unlocked) pre.unlocked = true;
+      let conflict = false;
+      PREP_CHOICES.forEach(f => {
+        if (!inc[f]) return;
+        if (ev[f] && ev[f] !== inc[f] && !prev.choices.includes(f)) { conflict = true; return; }
+        ev[f] = inc[f];
+        pre.choices.push(f);
+      });
+      PREP_CRITS.forEach(id => {
+        if (inc.v[id] == null) return;
+        if (ev.v[id] != null && ev.v[id] !== inc.v[id] && !prev.crits.includes(id)) { conflict = true; return; }
+        ev.v[id] = inc.v[id];
+        ev.d[id] = inc.d[id];
+        pre.crits.push(id);
+      });
+      if (conflict) kept++;
+      if (pre.choices.length || pre.crits.length) {
+        ev.pre = pre;
+        ev.updatedAt = Math.max(ev.updatedAt || 0, Date.now());
+        filled++;
+      }
+    });
+    const info = ep.prepFrom && ep.prepFrom.by === by && ep.prepFrom.batch === p.batch
+      ? ep.prepFrom : (ep.prepFrom = {by, batch:p.batch || "", at:p.at || 0, parts:null});
+    info.lastAt = Date.now();
+    let dup = false;
+    if (p.part) {
+      const [n, total] = p.part;
+      info.parts = info.parts && info.parts.total === total ? info.parts : {total, got:[]};
+      if (info.parts.got.includes(n)) dup = true;
+      else info.parts.got.push(n);
+    }
+    const got = info.parts ? info.parts.got.length : 1;
+    const total = info.parts ? info.parts.total : 1;
+    return {by, prep:true, added, filled, kept, locked, older, dup, got, total, done:got >= total};
   }
 
   /* Fusionne l'évaluation reçue d'un collègue.
@@ -491,11 +596,11 @@
 
   function importPayloads(ep, payloads, me) {
     let last = null;
-    const sum = {added:0, updated:0, older:0};
+    const sum = {added:0, updated:0, older:0, filled:0, kept:0, locked:0};
     for (const p of payloads) {
-      const res = mergeOther(ep, p, me);
+      const res = p.prep ? mergePrep(ep, p, me) : mergeOther(ep, p, me);
       if (res.error) return res;
-      sum.added += res.added; sum.updated += res.updated; sum.older += res.older;
+      Object.keys(sum).forEach(k => { sum[k] += res[k] || 0; });
       last = res;
     }
     return {...last, ...sum};
@@ -505,8 +610,16 @@
     if (res.error) return res.error;
     const extra = [
       res.added && `${res.added} candidat(s) ajouté(s)`,
-      res.older && `${res.older} fiche(s) plus ancienne(s) ignorée(s)`
+      res.older && `${res.older} fiche(s) plus ancienne(s) ignorée(s)`,
+      res.kept && `${res.kept} fiche(s) où tu avais saisi autre chose : tes valeurs sont conservées`,
+      res.locked && `${res.locked} fiche(s) déjà terminée(s) non modifiée(s)`
     ].filter(Boolean).join(" · ");
+    if (res.prep) {
+      const head = res.done ? `✅ Préparation de ${res.by} reçue : ${res.filled} fiche(s) pré-remplie(s) (répartition, AFL2, AFL3)`
+        : res.dup ? `QR de préparation déjà reçu (${res.got}/${res.total}) : montre le suivant`
+        : `QR de préparation ${res.got}/${res.total} de ${res.by} reçu : montre le suivant`;
+      return head + (extra ? ` · ${extra}` : "") + ".";
+    }
     const head = res.single ? `✅ Fiche de ${res.by} reçue`
       : res.done ? `✅ Évaluation de ${res.by} reçue`
       : res.dup ? `QR déjà reçu (${res.got}/${res.total} de ${res.by}) : montre le suivant`
@@ -771,13 +884,14 @@
 
   return {
     DATA_VERSION, FORMAT_VERSION, QR_PREFIX, PER_QR,
-    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
+    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
     uid, normName, q4, fmt, hash, clone, own, get, critById,
     inRange, degreeOf, stepsOf, descOf, degreeName, isValidValue, emptyEval, isFilled, scores, missingFields,
     encodeCell, decodeCell,
     entriesFor, critCompare, harmonize, makeValidation, retainedFor, needsAction, evKey,
     addCandidates, parseCSV,
     exportRows, qrParts, singleQR, exportFile, parseCodes, fileToPayload, mergeOther, importPayloads, mergeMessage,
+    prepRows, prepParts, exportPrepFile, prepReady, mergePrep,
     logHistory, migrateEpreuve, migrateDb, contentHash, makeBackup, checkBackup, mergeEpreuve, restoreBackup,
     juryStats
   };
