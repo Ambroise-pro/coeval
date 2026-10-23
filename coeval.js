@@ -95,6 +95,11 @@
   const normName = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const fmt = n => n == null || Number.isNaN(n) ? "—" : (Math.round(n * 100) / 100).toString().replace(".", ",");
   const q4 = n => Math.round(n * 4) / 4;
+  const hash = s => {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+    return (h >>> 0).toString(36);
+  };
 
   let db = load();
   let tab = "eval";
@@ -386,7 +391,9 @@
 
   function qrParts(ep) {
     const p = exportPayload(ep);
-    const batch = uid().slice(0, 8);
+    /* Lot stable tant que les données ne changent pas : les QR d'un même envoi
+       restent reconnus ensemble même si l'écran est réaffiché entre deux scans. */
+    const batch = hash(JSON.stringify([p.title, p.by, p.rows]));
     const chunks = [];
     for (let i = 0; i < Math.max(1, p.rows.length); i += PER_QR) chunks.push(p.rows.slice(i, i + PER_QR));
     return chunks.map((rows, i) => QR_PREFIX + JSON.stringify({t:p.title, e:p.by, a:p.at, k:batch, p:[i + 1, chunks.length], r:rows}));
@@ -593,15 +600,16 @@
 
   function finalEval(ep, cand) {
     const evs = evaluatorsFor(ep, cand).filter(x => x.ev);
-    const base = ep.mine[cand.id] || evs[0]?.ev || emptyEval();
     const fin = ep.final[cand.id] || {};
+    /* Premier choix renseigné (le mien d'abord), même si ma fiche existe mais est vide. */
+    const pick = field => fin.choice?.[field] || evs.map(x => x.ev[field]).find(Boolean) || "";
     const v = {};
     GRID.forEach(cr => {
-      if (fin[cr.id] != null) { v[cr.id] = fin[cr.id]; return; }
+      if (typeof fin[cr.id] === "number") { v[cr.id] = fin[cr.id]; return; }
       const vals = evs.map(x => x.ev.v[cr.id]).filter(x => x != null);
       if (vals.length) v[cr.id] = q4(vals.reduce((a, b) => a + b, 0) / vals.length);
     });
-    return {split:fin.split || base.split, role:fin.role || base.role, theme:base.theme, v, d:{}};
+    return {split:pick("split"), role:pick("role"), theme:pick("theme"), v, d:{}};
   }
 
   function conflicts(ep, cand) {
@@ -663,7 +671,7 @@
     const choiceRow = (field, label, map) => {
       const vals = evs.map(x => x.ev?.[field] || "");
       const diff = new Set(vals.filter(Boolean)).size > 1;
-      const opts = Object.entries(map).map(([k, v]) => `<option value="${k}"${fin[field] === k ? " selected" : ""}>${esc(v)}</option>`).join("");
+      const opts = `<option value=""${fin[field] ? "" : " selected"}>—</option>` + Object.entries(map).map(([k, v]) => `<option value="${k}"${fin[field] === k ? " selected" : ""}>${esc(v)}</option>`).join("");
       return `<tr class="${diff ? "ce-row-bad" : ""}"><td>${label}</td>${vals.map(v => `<td>${esc(map[v] || "—")}</td>`).join("")}<td></td>
         <td>${field === "theme" ? esc(map[fin.theme] || "—") : `<select data-act="final-choice" data-field="${field}">${opts}</select>`}</td></tr>`;
     };
@@ -673,7 +681,7 @@
       const degs = evs.map(x => x.ev?.v[cr.id] == null ? null : degreeOf(cr, x.ev.v[cr.id], x.ev.d[cr.id])).filter(Boolean);
       const gap = vals.length > 1 ? Math.max(...vals) - Math.min(...vals) : null;
       const cls = vals.length > 1 && new Set(degs).size > 1 ? "ce-row-bad" : gap >= .5 ? "ce-row-mid" : "";
-      const overridden = ep.final[cand.id]?.[cr.id] != null;
+      const overridden = typeof ep.final[cand.id]?.[cr.id] === "number";
       const opts = [`<option value="">${overridden ? "Moyenne" : "Moyenne (" + fmt(fin.v[cr.id]) + ")"}</option>`]
         .concat(stepsOf([0, cr.max]).map(x => `<option value="${x}"${overridden && fin.v[cr.id] === x ? " selected" : ""}>${fmt(x)}</option>`)).join("");
       const head = cr.group !== last ? `<tr class="ce-group-row"><td colspan="${evs.length + 3}">${esc(cr.afl === "AFL1" ? "AFL1 · " + cr.group : cr.group)}</td></tr>` : "";
@@ -862,7 +870,12 @@
       if (el.value === "") delete f[el.dataset.crit]; else f[el.dataset.crit] = Number(el.value);
       save(); render(); return;
     }
-    if (el.dataset.act === "final-choice") { finalStore(ep, crossId)[el.dataset.field] = el.value; save(); render(); }
+    /* Choix à part : « role » est aussi l'id du critère Rôle dans ep.final. */
+    if (el.dataset.act === "final-choice") {
+      const f = finalStore(ep, crossId);
+      (f.choice ||= {})[el.dataset.field] = el.value;
+      save(); render();
+    }
   });
 
   document.addEventListener("input", ev => {
