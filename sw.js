@@ -1,8 +1,8 @@
 /* Hors connexion : réseau d'abord, cache en secours.
    Si le réseau ne répond pas en 3 s (gymnase), la version en cache est servie
    et le cache est quand même mis à jour dès que le réseau répond. */
-const VERSION = "coeval-2";
-const FILES = ["./", "index.html", "coeval.css", "coeval-core.js", "coeval.js", "qrcode.js", "jsQR.js", "manifest.webmanifest"];
+const VERSION = "coeval-3";
+const FILES = ["./", "index.html", "coeval.css", "coeval-core.js", "coeval-demo.js", "coeval.js", "qrcode.js", "jsQR.js", "manifest.webmanifest"];
 const NETWORK_TIMEOUT = 3000;
 
 self.addEventListener("install", event => {

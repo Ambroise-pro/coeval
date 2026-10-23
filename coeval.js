@@ -197,6 +197,7 @@
       <div class="ce-actions">
         <button type="button" class="ce-primary" data-act="new-epreuve">+ Nouvelle épreuve</button>
         <button type="button" class="ce-primary" data-act="go-receive">📥 Je suis co-évaluateur : recevoir la préparation</button>
+        <button type="button" data-act="demo">🧪 Essayer avec une classe d'exemple (26 élèves)</button>
         <label class="ce-button">📂 Restaurer une sauvegarde<input id="ceRestore" type="file" accept=".json,application/json" hidden></label>
       </div>
     </section>`;
@@ -1187,6 +1188,7 @@
       <ul class="ce-cand-edit">${ep.candidates.map(c => `<li><span>${esc(c.name)}${c.classroom ? ` <small>${esc(c.classroom)}</small>` : ""}</span><button type="button" class="ce-link" data-act="del-cand" data-id="${esc(c.id)}">Supprimer</button></li>`).join("")}</ul>
       <hr><div class="ce-actions">
         <button type="button" class="ce-link" data-act="backup">💾 Sauvegarder l'épreuve</button>
+        <button type="button" class="ce-link" data-act="demo">🧪 Classe d'exemple</button>
         <button type="button" class="ce-link" data-act="rename-epreuve">Renommer l'épreuve</button>
         <button type="button" class="ce-link ce-danger" data-act="del-epreuve">Supprimer l'épreuve</button></div>`);
   }
@@ -1274,6 +1276,20 @@
         break;
       }
       case "go-receive": tab = "share"; render(); break;
+      case "demo": {
+        const old = db.epreuves.find(e => e.demo);
+        if (old && !confirm("Une épreuve d'exemple existe déjà. La remplacer par une nouvelle (les essais faits dessus seront perdus) ?")) return;
+        const demo = window.CoEvalDemo.makeDemo(db.me);
+        demo.backupHash = C.contentHash(demo);
+        db.epreuves = [demo, ...db.epreuves.filter(e => !e.demo)];
+        db.activeId = demo.id;
+        currentId = crossId = null;
+        crossView = "table"; crossFilter = "all"; evalFilter = "all";
+        save(); closeDialog();
+        tab = "cross"; render(); window.scrollTo({top:0});
+        toast("🧪 Classe d'exemple créée : élèves et collègue fictifs. Supprime-la depuis « Candidats » quand tu as fini.");
+        break;
+      }
       case "unlock-pre": {
         const e = evalOf(ep, currentId);
         if (!confirm(`Modifier la répartition, le thème, le rôle ou les notes AFL2/AFL3 évalués par ${e.pre.by} ?\nTes changements apparaîtront comme des écarts au croisement.`)) return;

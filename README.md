@@ -30,6 +30,14 @@ Application web (hors connexion) pour co-évaluer l'épreuve de musculation du b
 La liste des élèves s'importe en CSV (export Pronote accepté tel quel : nom en colonne A,
 classe si une colonne « Classe » existe).
 
+## Essayer avec une classe d'exemple
+
+Sur l'écran d'accueil (ou dans « Candidats »), **« Essayer avec une classe d'exemple (26 élèves) »** crée une épreuve
+marquée EXEMPLE : élèves et collègue fictifs, préparation AFL2/AFL3 faite, fiches AFL1 à tous les stades,
+accords, écarts de points, désaccords de degré (dont un majeur), choix différents, deux notes déjà validées.
+Elle se supprime comme une autre épreuve. La même liste existe au format Pronote :
+`exemples/classe-TG2-exemple.csv`, pour tester l'import.
+
 ## Données
 
 Tout reste dans le navigateur de chaque appareil (localStorage), rien n'est envoyé à un service extérieur.
@@ -48,6 +56,7 @@ de sécurité est gardée sous la clé `df-coeval-v1-avant-v2`.
 
 - `index.html`, `coeval.js`, `coeval.css` — l'application
 - `coeval-core.js` — grille, calculs, croisement, échanges, sauvegardes, migration (sans interface, testé)
+- `coeval-demo.js` — classe d'exemple de 26 élèves fictifs ; `exemples/` — la même liste en CSV
 - `sw.js`, `manifest.webmanifest` — installation et fonctionnement hors connexion
 - `qrcode.js` — génération des QR ([qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator), MIT)
 - `jsQR.js` — lecture des QR ([jsQR](https://github.com/cozmo/jsQR), Apache-2.0)
