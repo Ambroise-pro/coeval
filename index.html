@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#172554">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="coeval.css?v=1">
+  <link rel="stylesheet" href="coeval.css?v=2">
   <title>Co-évaluation Bac EPS</title>
 </head>
 <body>
@@ -23,19 +23,22 @@
 </div>
 
 <nav class="ce-tabs" role="tablist">
-  <button type="button" data-tab="eval" class="active">1 · Évaluer</button>
-  <button type="button" data-tab="share">2 · Échanger</button>
-  <button type="button" data-tab="cross">3 · Croiser</button>
+  <button type="button" role="tab" data-tab="eval" class="active" aria-selected="true">1 · Évaluer</button>
+  <button type="button" role="tab" data-tab="share" aria-selected="false">2 · Échanger</button>
+  <button type="button" role="tab" data-tab="cross" aria-selected="false">3 · Croiser</button>
 </nav>
 
+<div id="ceNotice"></div>
 <main id="ceMain"></main>
+<div id="cePrint" class="ce-print"></div>
 
 <dialog id="ceDialog"></dialog>
-<div id="ceToast" class="ce-toast hidden"></div>
+<div id="ceToast" class="ce-toast hidden" role="status" aria-live="polite"></div>
 
 <script src="jsQR.js"></script>
 <script src="qrcode.js"></script>
-<script src="coeval.js?v=1"></script>
+<script src="coeval-core.js?v=2"></script>
+<script src="coeval.js?v=2"></script>
 <script>
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).catch(() => {});

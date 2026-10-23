@@ -2,122 +2,63 @@
    CO-ÉVALUATION BAC — MUSCULATION CA5
    Chaque évaluateur note de son côté (sans voir l'autre),
    puis les évaluations sont échangées (QR, fichier ou code)
-   et croisées critère par critère.
+   et croisées critère par critère : le jury tranche d'abord
+   le degré, puis la note.
+   Les calculs sont dans coeval-core.js (testés à part).
    ========================================================= */
 
 (() => {
   "use strict";
 
+  const C = window.CoEvalCore;
+  const {GRID, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, fmt, normName} = C;
   const KEY = "df-coeval-v1";
-  const QR_PREFIX = "COEVAL1:";
-  const PER_QR = 8;
-
-  /* =========================
-     GRILLE (FCE Musculation CA5)
-  ========================= */
-
-  const D4 = (a, b, c, d) => [a, b, c, d];
-  const ROLE_LEVELS = ["Passif", "Suiveur", "Acteur", "Moteur"];
-
-  const GRID = [
-    {id:"amp", afl:"AFL1", group:"Produire", label:"Amplitude", max:1,
-      deg:D4([0, .25], [.25, .5], [.5, .75], [.75, 1]),
-      desc:D4("Butée articulaire", "Amplitude limitée", "Amplitude correcte", "Amplitude optimale")},
-    {id:"resp", afl:"AFL1", group:"Produire", label:"Respiration", max:1,
-      deg:D4([0, .25], [.25, .5], [.5, .75], [.75, 1]),
-      desc:D4("Respiration absente (apnée…)", "Présente mais non intégrée", "Partiellement intégrée ou inversée", "Efficace (expire sur le temps d'effort…)")},
-    {id:"post", afl:"AFL1", group:"Produire", label:"Posture", max:2,
-      deg:D4([0, .5], [.5, 1], [1, 1.5], [1.5, 2]),
-      desc:D4("Ne maîtrise pas les postures de sécurité dans l'effort", "Nombreuses postures compensatoires dans la série (> 30 %)", "Quelques postures compensatoires (10 à 20 %)", "Pas de posture compensatoire")},
-    {id:"param", afl:"AFL1", group:"Produire", label:"Choix des paramètres", max:4,
-      deg:D4([0, 1], [1.25, 2], [2.25, 3], [3.25, 4]),
-      desc:D4(
-        "Paramètres incohérents avec le thème, matériel inadapté ; charges mal installées et/ou non sécurisées",
-        "Charge incohérente avec les ressources ou le thème ; implication irrégulière : 50 à 75 % des répétitions prévues validées",
-        "Charge adaptée aux ressources et à l'effort ; paramètres cohérents avec le thème : 75 à 90 % validées",
-        "Charge adaptée, optimisée et régulée en cours d'action ; choix individualisé : > 90 % validées")},
-    {id:"ress", afl:"AFL1", group:"Analyser", label:"Identification des ressentis", max:2,
-      deg:D4([0, .5], [.75, 1], [1, 1.5], [1.75, 2]),
-      desc:D4(
-        "Pas d'analyse (copier/coller du partenaire) ; n'exploite ni les observations ni le ressenti",
-        "Analyse incomplète ; un seul type de ressenti (souvent psychologique), observations partielles",
-        "Données chiffrées exploitables ; analyse binaire (garde ou modifie) ; au moins deux types de ressentis + observations",
-        "Analyse fine reliée à l'activité ; tous les types de ressentis associés aux observations pour réguler le bon paramètre")},
-    {id:"regul", afl:"AFL1", group:"Analyser", label:"Régulation des paramètres", max:2,
-      deg:D4([0, .5], [.5, 1], [1, 1.5], [1.5, 2]),
-      desc:D4(
-        "Absentes ou incohérentes : charge mettant en jeu l'intégrité physique ou insignifiante",
-        "Inadaptées aux indicateurs relevés : charge trop lourde, trop légère, non personnalisée",
-        "Grâce à des ressentis ou des données chiffrées : charge adaptée mais non affinée ; début d'analyse",
-        "Croisement indicateurs chiffrés / ressentis : charge adaptée et régulée ; régulation différée (conception future)")},
-    {id:"projet", afl:"AFL2", group:"AFL2 · S'entraîner", label:"Concevoir un projet d'entraînement", max:2,
-      deg:D4([0, .5], [1, 1], [1.5, 1.5], [2, 2]),
-      desc:D4(
-        "Choix non référencés, potentiellement dangereux ; séquence copiée ou inadaptée aux ressources / au thème",
-        "Reproduit de manière stéréotypée, avec quelques incohérences, un projet d'entraînement",
-        "Séquences cohérentes à partir de paramètres simples ; conçoit son projet de manière pertinente",
-        "Personnalisation et régulations adaptées ; conçoit, régule et justifie son projet")},
-    {id:"recueil", afl:"AFL2", group:"AFL2 · S'entraîner", label:"Recueil de données", max:2,
-      deg:D4([0, .5], [1, 1], [1.5, 1.5], [2, 2]),
-      desc:D4(
-        "Incomplet, ne permet pas une construction adaptée de la séance",
-        "Complet mais avec des incohérences au regard des capacités",
-        "Complet et adapté aux capacités de l'élève",
-        "Complet, adapté, propose des régulations liées au projet (postures, respiration, charges, séries, répétitions…)")},
-    {id:"role", afl:"AFL3", group:"AFL3 · Coopérer", label:"Rôle", max:2,
-      deg:D4([0, .5], [1, 1], [1.5, 1.5], [2, 2]),
-      names:ROLE_LEVELS,
-      descByRole:{
-        partenaire:D4(
-          "Agit seul et pour lui-même et/ou interagit dangereusement avec ses partenaires",
-          "Collabore au niveau organisationnel, ponctuellement et/ou de manière inadaptée",
-          "Disponible et réactif pour observer et aider à partir d'indicateurs simples",
-          "Conseille à partir d'indicateurs précis et pertinents ; relie données et observations"),
-        juge:D4(
-          "N'aide pas : répétitions non fiables, n'identifie ni l'amplitude ni les postures",
-          "Irrégulier, a besoin d'aide : répétitions approximatives, identifie partiellement amplitude OU postures",
-          "Investi : indique les répétitions, identifie précisément amplitude OU postures",
-          "Autonome : indique les répétitions, identifie constamment amplitude ET postures")
-      }}
-  ];
-
-  const SPLITS = {"4-4":[4, 4], "6-2":[6, 2], "2-6":[2, 6]};
-  const THEMES = {"1":"Puissance", "2":"Tonification", "3":"Volume"};
-  const ROLES = {partenaire:"Partenaire d'entraînement", juge:"Juge"};
-
-  /* =========================
-     DONNÉES
-  ========================= */
 
   const $ = id => document.getElementById(id);
-  const uid = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
-  const normName = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const fmt = n => n == null || Number.isNaN(n) ? "—" : (Math.round(n * 100) / 100).toString().replace(".", ",");
-  const q4 = n => Math.round(n * 4) / 4;
-  const hash = s => {
-    let h = 2166136261;
-    for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-    return (h >>> 0).toString(36);
-  };
+  const when = t => t ? new Date(t).toLocaleString("fr-FR", {dateStyle:"short", timeStyle:"short"}) : "—";
+  const tag = st => `<span class="ce-tag ${STATUS[st].tone}">${STATUS[st].icon} ${STATUS[st].label}</span>`;
+  const dot = (cr, d) => d ? `<span class="ce-dot d${d}">${cr.names ? cr.names[d - 1] : "D" + d}</span>` : "";
 
   let db = load();
   let tab = "eval";
   let currentId = null;
   let crossId = null;
+  let crossView = "table";
+  let crossFilter = "all";
+  let crossSort = "name";
+  let onlyDivergent = false;
+  const openCrits = {};
   let stopCamera = null;
+  let shareIndex = 0;
+  let pendingRestore = null;
+
+  /* =========================
+     DONNÉES
+  ========================= */
 
   function load() {
-    try {
-      const raw = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (raw && Array.isArray(raw.epreuves)) return raw;
-    } catch (e) { console.error(e); }
-    return {me:"", epreuves:[], activeId:null};
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { console.error(e); }
+    if (raw && Array.isArray(raw.epreuves)) {
+      if ((raw.version || 1) < C.DATA_VERSION) {
+        // Copie de sécurité des données d'avant migration, gardée une fois.
+        try {
+          const k = KEY + "-avant-v" + C.DATA_VERSION;
+          if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify(raw));
+        } catch (e) { /* place insuffisante : la migration reste possible */ }
+        const migrated = C.migrateDb(raw);
+        try { localStorage.setItem(KEY, JSON.stringify(migrated)); } catch (e) { console.error(e); }
+        return migrated;
+      }
+      return C.migrateDb(raw);
+    }
+    return {version:C.DATA_VERSION, me:"", epreuves:[], activeId:null};
   }
 
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(db)); }
-    catch (e) { toast("⚠️ Enregistrement impossible sur cet appareil."); }
+    catch (e) { toast("⚠️ Enregistrement impossible sur cet appareil : sauvegarde l'épreuve dans un fichier."); }
   }
 
   function active() {
@@ -125,60 +66,28 @@
   }
 
   function newEpreuve(title) {
-    const e = {id:uid(), title, createdAt:Date.now(), candidates:[], mine:{}, others:{}, final:{}};
+    const e = {id:C.uid(), title, createdAt:Date.now(), candidates:[], mine:{}, others:{}, final:{}, history:[], backupAt:0, backupHash:""};
     db.epreuves.unshift(e);
     db.activeId = e.id;
     save();
     return e;
   }
 
-  function emptyEval() {
-    return {split:"", theme:"", role:"", v:{}, d:{}, comment:"", updatedAt:0};
-  }
-
   function evalOf(ep, candId) {
-    return ep.mine[candId] || (ep.mine[candId] = emptyEval());
+    return C.get(ep.mine, candId) || (ep.mine[candId] = C.emptyEval());
   }
 
-  function addCandidates(ep, names, classes) {
-    let added = 0;
-    names.forEach((raw, i) => {
-      const name = String(raw || "").replace(/\s+/g, " ").trim();
-      if (!name || ep.candidates.some(c => normName(c.name) === normName(name))) return;
-      ep.candidates.push({id:uid(), name, classroom:String(classes?.[i] || "").trim()});
-      added++;
-    });
-    ep.candidates.sort((a, b) => a.name.localeCompare(b.name, "fr"));
-    return added;
+  function finalStore(ep, candId) {
+    const f = C.get(ep.final, candId) || (ep.final[candId] = {crit:{}, choice:{}, validated:null, updatedAt:0});
+    f.crit = f.crit || {};
+    f.choice = f.choice || {};
+    return f;
   }
 
-  /* Liste d'élèves au format CSV (export Pronote) : nom en colonne A,
-     classe reprise si une colonne « Classe » existe. */
-  function parseCSV(text) {
-    text = text.replace(/^\ufeff/, "");
-    const first = text.split(/\r?\n/)[0] || "";
-    const sep = [";", "\t", ","].sort((a, b) => first.split(b).length - first.split(a).length)[0];
-    const rows = [];
-    let row = [], cell = "", quoted = false;
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-      if (quoted) {
-        if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
-        else if (ch === '"') quoted = false;
-        else cell += ch;
-      } else if (ch === '"') quoted = true;
-      else if (ch === sep) { row.push(cell); cell = ""; }
-      else if (ch === "\n" || ch === "\r") {
-        if (ch === "\r" && text[i + 1] === "\n") i++;
-        row.push(cell); rows.push(row); row = []; cell = "";
-      } else cell += ch;
-    }
-    if (cell || row.length) { row.push(cell); rows.push(row); }
-    const header = rows[0] && /^(eleves?|noms?|candidats?|nom prenom|nom et prenom)$/.test(normName(rows[0][0]));
-    const classCol = header ? rows[0].findIndex(h => normName(h) === "classe") : -1;
-    const body = (header ? rows.slice(1) : rows).filter(r => String(r[0] || "").trim());
-    return {names:body.map(r => r[0]), classes:body.map(r => classCol >= 0 ? r[classCol] : "")};
-  }
+  const candById = (ep, id) => ep.candidates.find(c => c.id === id);
+  const log = (ep, entry) => C.logHistory(ep, entry, db.me);
+  const hasContent = ep => ep.candidates.some(c => C.isFilled(C.get(ep.mine, c.id))) || Object.keys(ep.others).length || Object.keys(ep.final).length;
+  const unsaved = ep => hasContent(ep) && ep.backupHash !== C.contentHash(ep);
 
   function readTextFile(file, then) {
     file.arrayBuffer().then(buf => {
@@ -186,41 +95,7 @@
       try { text = new TextDecoder("utf-8", {fatal:true}).decode(buf); }
       catch (e) { text = new TextDecoder("windows-1252").decode(buf); }
       then(text);
-    });
-  }
-
-  /* =========================
-     CALCULS
-  ========================= */
-
-  function scores(ev) {
-    const v = ev?.v || {};
-    const sum = ids => ids.reduce((s, id) => s + (v[id] ?? 0), 0);
-    const filled = GRID.filter(c => v[c.id] != null).length;
-    const [w2, w3] = SPLITS[ev?.split] || [null, null];
-    const afl1 = sum(["amp", "resp", "post", "param", "ress", "regul"]);
-    const afl2 = w2 == null ? null : sum(["projet", "recueil"]) / 4 * w2;
-    const afl3 = w3 == null ? null : (v.role ?? 0) / 2 * w3;
-    const total = afl2 == null ? null : afl1 + afl2 + afl3;
-    return {afl1, afl2, afl3, total, filled, complete:filled === GRID.length && !!ev.split && !!ev.role};
-  }
-
-  function degreeOf(crit, value, stored) {
-    if (stored) return stored;
-    if (value == null) return 0;
-    const i = crit.deg.findIndex(([a, b]) => value >= a && value <= b);
-    return i + 1;
-  }
-
-  function stepsOf([a, b]) {
-    const out = [];
-    for (let x = a; x <= b + 1e-9; x += .25) out.push(q4(x));
-    return out;
-  }
-
-  function descOf(crit, ev) {
-    if (crit.descByRole) return crit.descByRole[ev?.role] || null;
-    return crit.desc;
+    }, () => toast("Fichier illisible."));
   }
 
   /* =========================
@@ -232,22 +107,48 @@
     t.textContent = text;
     t.classList.remove("hidden");
     clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => t.classList.add("hidden"), 2600);
+    toast.timer = setTimeout(() => t.classList.add("hidden"), 3200);
+  }
+
+  function openDialog(html) {
+    const dlg = $("ceDialog");
+    dlg.innerHTML = `<form method="dialog" class="ce-dialog">${html}</form>`;
+    if (!dlg.open) dlg.showModal();
+  }
+
+  function closeDialog() {
+    const dlg = $("ceDialog");
+    if (dlg.open) dlg.close();
   }
 
   function renderBar() {
     const sel = $("ceEpreuve");
     sel.innerHTML = db.epreuves.length
-      ? db.epreuves.map(e => `<option value="${e.id}"${e.id === active()?.id ? " selected" : ""}>${esc(e.title)} · ${e.candidates.length} candidat(s)</option>`).join("")
+      ? db.epreuves.map(e => `<option value="${esc(e.id)}"${e.id === active()?.id ? " selected" : ""}>${esc(e.title)} · ${e.candidates.length} candidat(s)</option>`).join("")
       : `<option value="">Aucune épreuve</option>`;
     $("ceMe").textContent = "👤 " + (db.me || "Qui évalue ?");
-    document.querySelectorAll(".ce-tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+    document.querySelectorAll(".ce-tabs button").forEach(b => {
+      b.classList.toggle("active", b.dataset.tab === tab);
+      b.setAttribute("aria-selected", b.dataset.tab === tab ? "true" : "false");
+    });
+  }
+
+  /* Rappel discret de sauvegarde : hors saisie, ou quand toutes mes fiches sont terminées. */
+  function renderNotice(ep) {
+    const box = $("ceNotice");
+    const myDone = ep && ep.candidates.length && ep.candidates.every(c => C.get(ep.mine, c.id)?.done);
+    const show = ep && db.me && unsaved(ep) && (tab !== "eval" || myDone);
+    box.innerHTML = show
+      ? `<div class="ce-notice"><span>💾 Des modifications ne sont pas encore sauvegardées dans un fichier${ep.backupAt ? ` (dernière sauvegarde ${when(ep.backupAt)})` : ""}.</span>
+        <button type="button" data-act="backup">Sauvegarder l'épreuve</button></div>`
+      : "";
   }
 
   function render() {
     if (stopCamera && tab !== "share") { stopCamera(); stopCamera = null; }
     renderBar();
     const ep = active();
+    renderNotice(ep);
     const main = $("ceMain");
     if (!db.me) { main.innerHTML = welcomeHTML(); return; }
     if (!ep) { main.innerHTML = noEpreuveHTML(); return; }
@@ -261,7 +162,7 @@
       <h2>Bienvenue 👋</h2>
       <p>Chaque évaluateur utilise <b>son propre appareil</b> et note les candidats <b>sans voir</b> les notes de l'autre.
       Ensuite, vous échangez vos évaluations (QR code, fichier ou code texte) et l'outil <b>croise</b> les critères :
-      écarts, désaccords de degré et note harmonisée.</p>
+      le jury tranche d'abord le <b>degré</b>, puis la note.</p>
       <label>Ton nom d'évaluateur<input id="ceMeInput" placeholder="ex. M. Le Pannérer" autocomplete="name"></label>
       <button type="button" class="ce-primary" data-act="set-me">Commencer</button>
     </section>`;
@@ -272,7 +173,10 @@
       <h2>Crée une épreuve</h2>
       <p>Ex. « Bac Musculation · Terminale · juin 2026 ». Ajoute ensuite la liste des candidats
       (ou récupère-la en scannant le QR de ton collègue dans l'onglet « Échanger »).</p>
-      <button type="button" class="ce-primary" data-act="new-epreuve">+ Nouvelle épreuve</button>
+      <div class="ce-actions">
+        <button type="button" class="ce-primary" data-act="new-epreuve">+ Nouvelle épreuve</button>
+        <label class="ce-button">📂 Restaurer une sauvegarde<input id="ceRestore" type="file" accept=".json,application/json" hidden></label>
+      </div>
     </section>`;
   }
 
@@ -287,21 +191,25 @@
         <button type="button" class="ce-primary" data-act="candidates">👥 Ajouter des candidats</button></section>`;
       return;
     }
-    if (!ep.candidates.some(c => c.id === currentId)) currentId = ep.candidates[0].id;
-    const cand = ep.candidates.find(c => c.id === currentId);
+    if (!candById(ep, currentId)) currentId = ep.candidates[0].id;
+    const cand = candById(ep, currentId);
     const ev = evalOf(ep, cand.id);
-    const s = scores(ev);
+    const s = C.scores(ev);
     const idx = ep.candidates.indexOf(cand);
+    const locked = !!ev.done;
+    const dis = locked ? " disabled" : "";
 
     const list = ep.candidates.map(c => {
-      const sc = scores(ep.mine[c.id]);
-      const state = sc.complete ? "done" : sc.filled ? "partial" : "";
-      return `<button type="button" class="ce-cand ${state}${c.id === cand.id ? " current" : ""}" data-act="pick" data-id="${c.id}">
-        <span>${esc(c.name)}${c.classroom ? ` <i>${esc(c.classroom)}</i>` : ""}</span><small>${sc.complete ? fmt(sc.total) + "/20" : sc.filled + "/" + GRID.length}</small></button>`;
+      const e = C.get(ep.mine, c.id);
+      const sc = C.scores(e);
+      const state = e?.done ? "done" : sc.complete ? "complete" : sc.filled ? "partial" : "";
+      const right = e?.done ? `🔒 ${fmt(sc.total)}` : sc.complete ? fmt(sc.total) + "/20" : sc.filled + "/" + GRID.length;
+      return `<button type="button" class="ce-cand ${state}${c.id === cand.id ? " current" : ""}" data-act="pick" data-id="${esc(c.id)}">
+        <span>${esc(c.name)}${c.classroom ? ` <i>${esc(c.classroom)}</i>` : ""}</span><small>${right}</small></button>`;
     }).join("");
 
     const choice = (field, options, label) => `<div class="ce-choice"><span>${label}</span>${
-      Object.entries(options).map(([k, v]) => `<button type="button" class="${ev[field] === k ? "on" : ""}" data-act="set" data-field="${field}" data-value="${k}">${esc(v)}</button>`).join("")
+      Object.entries(options).map(([k, v]) => `<button type="button" class="${ev[field] === k ? "on" : ""}" data-act="set" data-field="${field}" data-value="${k}" aria-pressed="${ev[field] === k}"${dis}>${esc(v)}</button>`).join("")
     }</div>`;
 
     let groups = "", lastGroup = "";
@@ -309,95 +217,133 @@
       if (crit.group !== lastGroup) {
         if (lastGroup) groups += "</div>";
         lastGroup = crit.group;
-        const head = crit.afl === "AFL1" ? `AFL1 · ${crit.group}` : crit.group;
-        groups += `<div class="ce-group"><h3>${esc(head)}</h3>`;
+        groups += `<div class="ce-group"><h3>${esc(crit.afl === "AFL1" ? `AFL1 · ${crit.group}` : crit.group)}</h3>`;
       }
-      groups += critHTML(crit, ev);
+      groups += critHTML(crit, ev, locked);
     });
     groups += "</div>";
+
+    const lockBar = locked
+      ? `<div class="ce-lock"><span>🔒 Évaluation terminée le ${when(ev.doneAt)}. Les notes sont verrouillées.</span>
+          <button type="button" data-act="reopen">Modifier mon évaluation</button></div>`
+      : ev.initial
+        ? `<div class="ce-lock open">✏️ Fiche rouverte : chaque modification est consignée dans l'historique, la version initiale est conservée.</div>`
+        : "";
+    const part = (val, p) => val != null ? fmt(val) : p != null ? fmt(p) + "…" : "—";
 
     main.innerHTML = `<div class="ce-eval">
       <aside class="ce-list"><div class="ce-list-head">${ep.candidates.length} candidats · évaluation de <b>${esc(db.me)}</b></div>${list}</aside>
       <section class="ce-sheet">
         <div class="ce-card ce-cand-head">
           <div class="ce-nav">
-            <button type="button" data-act="step" data-step="-1" ${idx === 0 ? "disabled" : ""}>←</button>
-            <h2>${esc(cand.name)}</h2>
-            <button type="button" data-act="step" data-step="1" ${idx === ep.candidates.length - 1 ? "disabled" : ""}>→</button>
+            <button type="button" data-act="step" data-step="-1" aria-label="Candidat précédent" ${idx === 0 ? "disabled" : ""}>←</button>
+            <h2>${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</h2>
+            <button type="button" data-act="step" data-step="1" aria-label="Candidat suivant" ${idx === ep.candidates.length - 1 ? "disabled" : ""}>→</button>
           </div>
+          ${lockBar}
           ${choice("theme", THEMES, "Thème")}
           ${choice("split", {"4-4":"AFL2 4 · AFL3 4", "6-2":"AFL2 6 · AFL3 2", "2-6":"AFL2 2 · AFL3 6"}, "Répartition")}
           ${choice("role", ROLES, "Rôle AFL3")}
         </div>
         ${groups}
-        <div class="ce-card"><label class="ce-comment">Remarques (facultatif)<textarea data-field="comment" rows="2">${esc(ev.comment)}</textarea></label></div>
+        <div class="ce-card"><label class="ce-comment">Remarques (facultatif, transmises par fichier)<textarea data-field="comment" rows="2"${locked ? " readonly" : ""}>${esc(ev.comment)}</textarea></label>
+          <div class="ce-actions">
+            ${locked ? "" : `<button type="button" class="ce-primary" data-act="finish">✔ Terminer mon évaluation</button>`}
+            <button type="button" data-act="single-qr">📱 QR de ce candidat</button>
+          </div>
+        </div>
         <div class="ce-total">
-          <span>AFL1 <b>${fmt(s.afl1)}</b>/12</span>
-          <span>AFL2 <b>${fmt(s.afl2)}</b>/${SPLITS[ev.split]?.[0] ?? "?"}</span>
-          <span>AFL3 <b>${fmt(s.afl3)}</b>/${SPLITS[ev.split]?.[1] ?? "?"}</span>
-          <strong>${s.total == null ? "Choisir la répartition" : fmt(s.total) + " / 20"}</strong>
+          <span>AFL1 <b>${part(s.afl1, s.afl1p)}</b>/12</span>
+          <span>AFL2 <b>${part(s.afl2, s.afl2p)}</b>/${SPLITS[ev.split]?.[0] ?? "?"}</span>
+          <span>AFL3 <b>${part(s.afl3, s.afl3p)}</b>/${SPLITS[ev.split]?.[1] ?? "?"}</span>
+          <strong>${s.complete ? fmt(s.total) + " / 20" : ev.split ? fmt(s.partial) + " / 20 · incomplet" : "Choisir la répartition"}</strong>
           <small>${s.filled}/${GRID.length} critères</small>
         </div>
       </section>
     </div>`;
   }
 
-  function critHTML(crit, ev) {
+  function critHTML(crit, ev, locked) {
     const value = ev.v[crit.id];
-    const deg = degreeOf(crit, value, ev.d[crit.id]);
-    const desc = descOf(crit, ev);
+    const deg = C.degreeOf(crit, value, ev.d[crit.id]);
+    const desc = C.descOf(crit, ev.role);
+    const recheck = ev.recheck?.[crit.id] ? `<p class="ce-warn">⚠️ Le rôle AFL3 a changé après cette note : vérifie-la avec les descripteurs affichés.</p>` : "";
     if (!desc) {
-      return `<div class="ce-crit"><div class="ce-crit-head"><b>${esc(crit.label)}</b><span>/${crit.max}</span></div>
+      return `<div class="ce-crit"><div class="ce-crit-head"><b>${esc(crit.label)}</b><span>${value != null ? `<strong>${fmt(value)}</strong>` : "—"} /${crit.max}</span></div>
         <p class="ce-hint">Choisis d'abord le rôle AFL3 (partenaire ou juge) en haut de la fiche.</p></div>`;
     }
-    const degs = crit.deg.map(([a, b], i) => `<button type="button" class="ce-deg d${i + 1}${deg === i + 1 ? " on" : ""}" data-act="deg" data-crit="${crit.id}" data-deg="${i + 1}">
+    const dis = locked ? " disabled" : "";
+    const degs = crit.deg.map(([a, b], i) => `<button type="button" class="ce-deg d${i + 1}${deg === i + 1 ? " on" : ""}" data-act="deg" data-crit="${crit.id}" data-deg="${i + 1}" aria-pressed="${deg === i + 1}"${dis}>
       <b>${crit.names ? crit.names[i] : "Degré " + (i + 1)} <small>${a === b ? fmt(a) : fmt(a) + "–" + fmt(b)}</small></b><span>${esc(desc[i])}</span></button>`).join("");
-    const chips = deg ? stepsOf(crit.deg[deg - 1]).map(x => `<button type="button" class="${value === x ? "on" : ""}" data-act="val" data-crit="${crit.id}" data-deg="${deg}" data-value="${x}">${fmt(x)}</button>`).join("") : "";
+    const chips = deg ? C.stepsOf(crit.deg[deg - 1]).map(x => `<button type="button" class="${value === x ? "on" : ""}" data-act="val" data-crit="${crit.id}" data-deg="${deg}" data-value="${x}" aria-pressed="${value === x}"${dis}>${fmt(x)}</button>`).join("") : "";
     return `<div class="ce-crit${value != null ? " filled" : ""}">
       <div class="ce-crit-head"><b>${esc(crit.label)}</b><span>${value != null ? `<strong>${fmt(value)}</strong>` : "—"} /${crit.max}</span></div>
+      ${recheck}
       <div class="ce-degs">${degs}</div>
       ${deg && chips ? `<div class="ce-chips"><span>Note dans le degré ${deg} :</span>${chips}</div>` : ""}
     </div>`;
   }
 
+  /* Modification d'une fiche déjà terminée une fois : consignée, sans toucher à la version initiale. */
+  function logEdit(ep, cand, ev, field, from, to) {
+    if (!ev.initial || from === to) return;
+    log(ep, {type:"eval-edit", cand:cand.id, candName:cand.name, field, from:String(from ?? ""), to:String(to ?? "")});
+  }
+
   function setValue(ep, critId, deg, value) {
+    const cand = candById(ep, currentId);
     const ev = evalOf(ep, currentId);
-    const crit = GRID.find(c => c.id === critId);
-    if (value == null) {
-      const range = crit.deg[deg - 1];
-      ev.d[critId] = deg;
-      if (range[0] === range[1]) ev.v[critId] = range[0];
-      else if (ev.v[critId] == null || ev.v[critId] < range[0] || ev.v[critId] > range[1]) delete ev.v[critId];
-    } else {
-      ev.d[critId] = deg;
-      ev.v[critId] = value;
-    }
+    if (ev.done) return;
+    const crit = C.critById(critId);
+    const before = ev.v[critId] != null ? `D${C.degreeOf(crit, ev.v[critId], ev.d[critId])} ${fmt(ev.v[critId])}` : "";
+    const range = crit.deg[deg - 1];
+    ev.d[critId] = deg;
+    if (value != null) ev.v[critId] = value;
+    else if (range[0] === range[1]) ev.v[critId] = range[0];
+    else if (ev.v[critId] == null || !C.inRange(crit, deg, ev.v[critId])) delete ev.v[critId];
+    if (ev.recheck) delete ev.recheck[critId];
+    const after = ev.v[critId] != null ? `D${deg} ${fmt(ev.v[critId])}` : "";
+    logEdit(ep, cand, ev, crit.label, before, after);
     ev.updatedAt = Date.now();
     save();
+  }
+
+  function snapshot(ev) {
+    return {split:ev.split, theme:ev.theme, role:ev.role, v:{...ev.v}, d:{...ev.d}, comment:ev.comment, at:Date.now()};
+  }
+
+  function recapTable(ev, role) {
+    const s = C.scores(ev);
+    const rows = GRID.map(cr => {
+      const v = ev.v[cr.id];
+      const d = C.degreeOf(cr, v, ev.d?.[cr.id]);
+      return `<tr><td>${esc(cr.label)}</td><td>${v != null ? dot(cr, d) : "—"}</td><td class="num">${fmt(v)} / ${cr.max}</td></tr>`;
+    }).join("");
+    return `<p><b>Thème :</b> ${esc(THEMES[ev.theme] || "—")} · <b>Répartition :</b> ${esc(ev.split || "—")} · <b>Rôle :</b> ${esc(ROLES[role ?? ev.role] || "—")}</p>
+      <div class="ce-table"><table><thead><tr><th>Critère</th><th>Degré</th><th>Note</th></tr></thead><tbody>${rows}
+      <tr class="ce-sum"><td>AFL1 · AFL2 · AFL3</td><td></td><td class="num">${fmt(s.afl1)} · ${fmt(s.afl2)} · ${fmt(s.afl3)}</td></tr>
+      <tr class="ce-sum"><td>Total</td><td></td><td class="num"><b>${fmt(s.total)} / 20</b></td></tr></tbody></table></div>`;
+  }
+
+  function openFinish(ep, cand) {
+    const ev = evalOf(ep, cand.id);
+    const missing = C.missingFields(ev);
+    if (missing.length) {
+      openDialog(`<h2>Fiche incomplète</h2><p>Pour terminer l'évaluation de <b>${esc(cand.name)}</b>, il manque :</p>
+        <ul>${missing.map(m => `<li>${esc(m)}</li>`).join("")}</ul>
+        <div class="ce-actions"><button value="close" class="ce-primary">Compléter la fiche</button></div>`);
+      return;
+    }
+    openDialog(`<h2>Terminer l'évaluation de ${esc(cand.name)} ?</h2>
+      ${recapTable(ev)}
+      <p class="ce-hint">Après confirmation, la fiche est verrouillée et une copie de cette évaluation initiale est conservée.
+      Elle restera consultable après l'harmonisation.</p>
+      <div class="ce-actions"><button type="button" class="ce-primary" data-act="confirm-done">🔒 Confirmer et verrouiller</button><button value="close">Annuler</button></div>`);
   }
 
   /* =========================
      2 · ÉCHANGER
   ========================= */
-
-  function exportPayload(ep) {
-    const rows = ep.candidates.map(c => {
-      const ev = ep.mine[c.id] || emptyEval();
-      const cells = GRID.map(cr => ev.v[cr.id] == null ? 0 : degreeOf(cr, ev.v[cr.id], ev.d[cr.id]) * 100 + Math.round(ev.v[cr.id] * 4) + 1);
-      return cells.some(Boolean) || ev.split || ev.role ? [c.name, ev.split, ev.theme, ev.role, cells] : [c.name];
-    });
-    return {title:ep.title, by:db.me, at:Date.now(), rows};
-  }
-
-  function qrParts(ep) {
-    const p = exportPayload(ep);
-    /* Lot stable tant que les données ne changent pas : les QR d'un même envoi
-       restent reconnus ensemble même si l'écran est réaffiché entre deux scans. */
-    const batch = hash(JSON.stringify([p.title, p.by, p.rows]));
-    const chunks = [];
-    for (let i = 0; i < Math.max(1, p.rows.length); i += PER_QR) chunks.push(p.rows.slice(i, i + PER_QR));
-    return chunks.map((rows, i) => QR_PREFIX + JSON.stringify({t:p.title, e:p.by, a:p.at, k:batch, p:[i + 1, chunks.length], r:rows}));
-  }
 
   function qrImage(text) {
     if (typeof qrcode !== "function") return "";
@@ -407,12 +353,25 @@
     return qr.createSvgTag({cellSize:4, margin:4, scalable:true});
   }
 
-  let shareIndex = 0;
-
   function renderShare(main, ep) {
-    const parts = ep.candidates.length ? qrParts(ep) : [];
+    const parts = ep.candidates.length ? C.qrParts(ep, db.me) : [];
     shareIndex = Math.min(shareIndex, Math.max(0, parts.length - 1));
     const others = Object.entries(ep.others);
+    const received = others.map(([name, o]) => {
+      const rows = Object.values(o.rows).filter(C.isFilled);
+      const done = rows.filter(r => r.done).length;
+      let lots = "";
+      if (o.parts) {
+        const got = [...o.parts.got].sort((a, b) => a - b);
+        const missing = Array.from({length:o.parts.total}, (_, i) => i + 1).filter(n => !got.includes(n));
+        lots = missing.length
+          ? `<span class="ce-warn">⚠️ QR reçus : ${got.join(", ") || "aucun"} sur ${o.parts.total} · manquants : ${missing.join(", ")}</span>`
+          : `<span class="ce-ok-text">✓ ${o.parts.total} QR sur ${o.parts.total} reçus</span>`;
+      }
+      return `<li><div><b>${esc(name)}</b> · ${rows.length} fiche(s) dont ${done} terminée(s)</div>
+        <small>Dernière réception : ${when(o.lastAt || o.at)}</small> ${lots}
+        <button type="button" class="ce-link" data-act="drop-other" data-name="${esc(name)}">Retirer</button></li>`;
+    }).join("");
     main.innerHTML = `<div class="ce-share">
       <section class="ce-card">
         <h2>📤 Envoyer mon évaluation</h2>
@@ -420,19 +379,20 @@
         Le QR contient aussi la liste des candidats : il sert à la partager avant l'épreuve.</p>
         ${parts.length ? `<div class="ce-qr">${qrImage(parts[shareIndex])}</div>
         <div class="ce-nav ce-qr-nav">
-          <button type="button" data-act="qr-step" data-step="-1" ${shareIndex === 0 ? "disabled" : ""}>←</button>
+          <button type="button" data-act="qr-step" data-step="-1" aria-label="QR précédent" ${shareIndex === 0 ? "disabled" : ""}>←</button>
           <b>QR ${shareIndex + 1} / ${parts.length}</b>
-          <button type="button" data-act="qr-step" data-step="1" ${shareIndex >= parts.length - 1 ? "disabled" : ""}>→</button>
+          <button type="button" data-act="qr-step" data-step="1" aria-label="QR suivant" ${shareIndex >= parts.length - 1 ? "disabled" : ""}>→</button>
         </div>` : `<p class="ce-hint">Ajoute des candidats pour générer un QR.</p>`}
         <div class="ce-actions">
-          <button type="button" data-act="download">💾 Fichier</button>
+          <button type="button" data-act="download">💾 Fichier (avec remarques)</button>
           <button type="button" data-act="copy-code">📋 Copier le code</button>
         </div>
+        <p class="ce-hint">Pour un seul candidat : bouton « QR de ce candidat » en bas de sa fiche.</p>
       </section>
       <section class="ce-card">
         <h2>📥 Recevoir l'évaluation d'un collègue</h2>
         <div class="ce-camera"><video id="ceVideo" playsinline muted class="hidden"></video></div>
-        <p id="ceCamStatus" class="ce-hint"></p>
+        <p id="ceCamStatus" class="ce-hint" aria-live="polite"></p>
         <div class="ce-actions">
           <button type="button" class="ce-primary" data-act="scan">📷 Scanner son QR</button>
           <label class="ce-button">📂 Importer un fichier<input id="ceFile" type="file" accept=".json,application/json" hidden></label>
@@ -442,10 +402,17 @@
           <button type="button" data-act="paste">Valider</button>
         </details>
         <h3>Évaluations reçues</h3>
-        ${others.length ? `<ul class="ce-received">${others.map(([name, o]) => `<li><b>${esc(name)}</b> · ${Object.keys(o.rows).length} candidat(s) · ${new Date(o.at).toLocaleString("fr-FR")}
-          ${o.parts && o.parts.got.length < o.parts.total ? `<span class="ce-warn">QR reçus ${o.parts.got.sort((a, b) => a - b).join(", ")} sur ${o.parts.total}</span>` : ""}
-          <button type="button" class="ce-link" data-act="drop-other" data-name="${esc(name)}">Retirer</button></li>`).join("")}</ul>`
-          : `<p class="ce-hint">Rien reçu pour l'instant.</p>`}
+        ${others.length ? `<ul class="ce-received">${received}</ul>` : `<p class="ce-hint">Rien reçu pour l'instant.</p>`}
+      </section>
+      <section class="ce-card">
+        <h2>💾 Sauvegarde de l'épreuve</h2>
+        <p>Un fichier qui contient tout : candidats, mes évaluations (et leur version initiale), évaluations reçues,
+        décisions d'harmonisation, notes validées et historique. Il sert aussi à transmettre les décisions du jury à un autre appareil.</p>
+        <p class="${unsaved(ep) ? "ce-warn" : "ce-hint"}">${ep.backupAt ? `Dernière sauvegarde : ${when(ep.backupAt)}` : "Jamais sauvegardée"}${unsaved(ep) ? " · modifications non sauvegardées" : ""}</p>
+        <div class="ce-actions">
+          <button type="button" class="ce-primary" data-act="backup">💾 Sauvegarder l'épreuve</button>
+          <label class="ce-button">📂 Restaurer une sauvegarde<input id="ceRestore" type="file" accept=".json,application/json" hidden></label>
+        </div>
       </section>
     </div>`;
   }
@@ -508,62 +475,19 @@
   }
 
   function importText(text) {
-    const lines = String(text).split(/\s*(?=COEVAL1:)/).map(s => s.trim()).filter(s => s.startsWith(QR_PREFIX));
-    if (!lines.length) return {done:false, message:"Ce QR n'est pas une évaluation de co-évaluation."};
-    let last = null, added = 0;
-    for (const line of lines) {
-      let p;
-      try { p = JSON.parse(line.slice(QR_PREFIX.length)); }
-      catch (e) { return {done:false, message:"Code illisible ou incomplet."}; }
-      last = mergeOther({title:p.t, by:p.e, at:p.a, batch:p.k, part:p.p, rows:p.r});
-      if (last.error) return {done:false, message:last.error};
-      added += last.added;
-    }
-    return {...last, message:last.message.replace(/ · \d+ candidat\(s\) ajouté\(s\)/, "").replace(/\.$/, added ? ` · ${added} candidat(s) ajouté(s).` : ".")};
-  }
-
-  function mergeOther(p) {
-    let ep = active();
-    if (!ep) ep = newEpreuve(p.title || "Épreuve importée");
-    const by = String(p.by || "Collègue").trim();
-    if (normName(by) === normName(db.me)) return {error:"C'est ta propre évaluation (même nom d'évaluateur)."};
-    const added = addCandidates(ep, p.rows.map(r => r[0]));
-    const other = ep.others[by] && ep.others[by].batch === p.batch
-      ? ep.others[by]
-      : (ep.others[by] = {at:p.at, batch:p.batch, rows:{...(ep.others[by]?.rows || {})}, parts:null});
-    p.rows.forEach(([name, split, theme, role, cells]) => {
-      const ev = {split:split || "", theme:theme || "", role:role || "", v:{}, d:{}};
-      GRID.forEach((cr, i) => {
-        const c = cells?.[i] || 0;
-        if (!c) return;
-        ev.d[cr.id] = Math.floor(c / 100);
-        ev.v[cr.id] = ((c % 100) - 1) / 4;
-      });
-      other.rows[normName(name)] = ev;
-    });
-    other.at = p.at;
-    if (p.part) {
-      const [n, total] = p.part;
-      other.parts = other.parts && other.parts.total === total ? other.parts : {total, got:[]};
-      if (!other.parts.got.includes(n)) other.parts.got.push(n);
-    }
+    const parsed = C.parseCodes(text);
+    if (parsed.error) return {done:false, message:parsed.error};
+    const ep = active() || newEpreuve(parsed.payloads[0].title || "Épreuve importée");
+    const res = C.importPayloads(ep, parsed.payloads, db.me);
     save();
-    const got = other.parts ? other.parts.got.length : 1;
-    const total = other.parts ? other.parts.total : 1;
-    const done = got >= total;
-    return {done, added, message:done
-      ? `✅ Évaluation de ${by} reçue${added ? ` · ${added} candidat(s) ajouté(s)` : ""}.`
-      : `QR ${got}/${total} de ${by} reçu… montre le suivant.`};
+    return {...res, done:!res.error && res.done, message:C.mergeMessage(res)};
   }
 
-  function download(ep) {
-    const data = {type:"coeval-musculation", version:1, ...exportPayload(ep),
-      comments:Object.fromEntries(ep.candidates.map(c => [c.name, ep.mine[c.id]?.comment || ""]).filter(([, v]) => v))};
-    const name = `coeval_${normName(ep.title).replace(/ /g, "-")}_${normName(db.me).replace(/ /g, "-")}.json`;
+  function downloadJSON(name, data, title) {
     const blob = new Blob([JSON.stringify(data)], {type:"application/json"});
     const file = new File([blob], name, {type:"application/json"});
     if (navigator.canShare?.({files:[file]})) {
-      navigator.share({files:[file], title:ep.title}).catch(() => {});
+      navigator.share({files:[file], title}).catch(() => {});
       return;
     }
     const a = document.createElement("a");
@@ -573,174 +497,578 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
 
+  const slug = s => normName(s).replace(/ /g, "-");
+
+  function download(ep) {
+    downloadJSON(`coeval_${slug(ep.title)}_${slug(db.me)}.json`, C.exportFile(ep, db.me), ep.title);
+  }
+
+  function backup(ep) {
+    const data = C.makeBackup(ep, db.me);
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    downloadJSON(`sauvegarde_${slug(ep.title)}_${slug(db.me)}_${stamp}.json`, data, ep.title);
+    ep.backupAt = data.savedAt;
+    ep.backupHash = C.contentHash(ep);
+    save();
+    render();
+    toast("💾 Sauvegarde créée. Range le fichier en lieu sûr.");
+  }
+
+  /* Un seul bouton d'import : fichier d'échange d'un collègue ou sauvegarde complète. */
   function importFile(file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const d = JSON.parse(reader.result);
-        if (d.type !== "coeval-musculation") throw new Error("type");
-        const res = mergeOther({title:d.title, by:d.by, at:d.at, batch:"file-" + d.at, part:null, rows:d.rows});
-        toast(res.error || res.message);
-      } catch (e) { toast("Fichier non reconnu."); }
+    readTextFile(file, text => {
+      let d;
+      try { d = JSON.parse(text); } catch (e) { toast("Fichier non reconnu."); return; }
+      if (d?.type === "coeval-backup") { openRestore(d); return; }
+      if (d?.type !== "coeval-musculation") { toast("Fichier non reconnu."); return; }
+      const ep = active() || newEpreuve(d.title || "Épreuve importée");
+      const res = C.importPayloads(ep, [C.fileToPayload(d)], db.me);
+      save();
+      toast(C.mergeMessage(res));
       render();
-    };
-    reader.readAsText(file);
+    });
+  }
+
+  function openRestore(d) {
+    const checked = C.checkBackup(d);
+    if (checked.error) { toast(checked.error); return; }
+    pendingRestore = checked;
+    const p = checked.preview;
+    const foreign = normName(p.by) !== normName(db.me);
+    const target = db.epreuves.find(e => e.id === checked.epreuve.id) || db.epreuves.find(e => normName(e.title) === normName(p.title));
+    const options = db.epreuves.map(e => `<option value="${esc(e.id)}"${e === target ? " selected" : ""}>${esc(e.title)} · ${e.candidates.length} candidat(s)</option>`).join("");
+    openDialog(`<h2>Restaurer une sauvegarde</h2>
+      <ul class="ce-preview">
+        <li><b>${esc(p.title)}</b>, sauvegardée le ${when(p.savedAt)} par <b>${esc(p.by || "?")}</b></li>
+        <li>${p.candidates} candidat(s) · ${p.mine} fiche(s) de ${esc(p.by || "?")}</li>
+        <li>Évaluations reçues : ${p.others.length ? esc(p.others.join(", ")) : "aucune"}</li>
+        <li>${p.decisions} décision(s) d'harmonisation · ${p.validated} note(s) validée(s) · ${p.history} entrée(s) d'historique</li>
+        ${p.version < C.DATA_VERSION ? `<li>Format ancien (v${p.version}) : converti automatiquement.</li>` : ""}
+      </ul>
+      ${foreign ? `<p class="ce-warn">Cette sauvegarde est celle de ${esc(p.by || "un autre évaluateur")} : ses fiches seront ajoutées comme évaluation reçue. Tes propres fiches ne sont pas touchées.</p>` : ""}
+      <fieldset class="ce-radio">
+        <legend>Que faire ?</legend>
+        <label><input type="radio" name="ceRestoreMode" value="merge"${db.epreuves.length ? " checked" : " disabled"}> Fusionner (garde, pour chaque fiche, la version la plus récente)</label>
+        <label><input type="radio" name="ceRestoreMode" value="replace"${foreign || !db.epreuves.length ? " disabled" : ""}> Remplacer l'épreuve choisie par la sauvegarde</label>
+        <label><input type="radio" name="ceRestoreMode" value="new"${db.epreuves.length ? "" : " checked"}> Ajouter comme nouvelle épreuve</label>
+      </fieldset>
+      ${db.epreuves.length ? `<label>Épreuve concernée<select id="ceRestoreTarget">${options}</select></label>` : ""}
+      <div class="ce-actions"><button type="button" class="ce-primary" data-act="do-restore">Restaurer</button><button value="close">Annuler</button></div>`);
+  }
+
+  function doRestore() {
+    if (!pendingRestore) return;
+    const mode = document.querySelector("input[name=ceRestoreMode]:checked")?.value || "new";
+    const targetId = $("ceRestoreTarget")?.value || null;
+    if (mode === "replace") {
+      const t = db.epreuves.find(e => e.id === targetId);
+      if (!confirm(`Remplacer définitivement « ${t?.title} » par la sauvegarde ? Les données actuelles de cette épreuve seront perdues.`)) return;
+    }
+    const res = C.restoreBackup(db, pendingRestore, {mode, targetId}, db.me);
+    if (res.error) { toast(res.error); return; }
+    pendingRestore = null;
+    currentId = crossId = null;
+    save();
+    closeDialog();
+    render();
+    toast(mode === "merge" ? "✅ Sauvegarde fusionnée." : mode === "replace" ? "✅ Épreuve remplacée par la sauvegarde." : "✅ Sauvegarde restaurée.");
   }
 
   /* =========================
-     3 · CROISER
+     3 · CROISER — tableau de bord
   ========================= */
 
-  function evaluatorsFor(ep, cand) {
-    const key = normName(cand.name);
-    const list = [{name:db.me, ev:ep.mine[cand.id] || null, me:true}];
-    Object.entries(ep.others).forEach(([name, o]) => list.push({name, ev:o.rows[key] || null}));
-    return list;
-  }
-
-  function finalEval(ep, cand) {
-    const evs = evaluatorsFor(ep, cand).filter(x => x.ev);
-    const fin = ep.final[cand.id] || {};
-    /* Premier choix renseigné (le mien d'abord), même si ma fiche existe mais est vide. */
-    const pick = field => fin.choice?.[field] || evs.map(x => x.ev[field]).find(Boolean) || "";
-    const v = {};
-    GRID.forEach(cr => {
-      if (typeof fin[cr.id] === "number") { v[cr.id] = fin[cr.id]; return; }
-      const vals = evs.map(x => x.ev.v[cr.id]).filter(x => x != null);
-      if (vals.length) v[cr.id] = q4(vals.reduce((a, b) => a + b, 0) / vals.length);
-    });
-    return {split:pick("split"), role:pick("role"), theme:pick("theme"), v, d:{}};
-  }
-
-  function conflicts(ep, cand) {
-    const evs = evaluatorsFor(ep, cand).filter(x => x.ev && scores(x.ev).filled);
-    if (evs.length < 2) return {pending:true, degree:0, points:0, choices:[]};
-    let degree = 0, points = 0;
-    GRID.forEach(cr => {
-      const vals = evs.map(x => x.ev.v[cr.id]).filter(x => x != null);
-      if (vals.length < 2) return;
-      const degs = evs.map(x => x.ev.v[cr.id] == null ? null : degreeOf(cr, x.ev.v[cr.id], x.ev.d[cr.id])).filter(Boolean);
-      if (new Set(degs).size > 1) degree++;
-      else if (Math.max(...vals) - Math.min(...vals) >= .5) points++;
-    });
-    const choices = ["split", "role", "theme"].filter(f => new Set(evs.map(x => x.ev[f]).filter(Boolean)).size > 1);
-    return {pending:false, degree, points, choices};
-  }
-
   function renderCross(main, ep) {
+    if (crossView === "stats") { renderStats(main, ep); return; }
+    const cand = candById(ep, crossId);
+    if (cand) { renderCrossDetail(main, ep, cand); return; }
+    crossId = null;
     const names = [db.me, ...Object.keys(ep.others)];
-    if (crossId && ep.candidates.some(c => c.id === crossId)) { renderCrossDetail(main, ep, ep.candidates.find(c => c.id === crossId)); return; }
-    const rows = ep.candidates.map(c => {
-      const evs = evaluatorsFor(ep, c);
-      const totals = evs.map(x => x.ev ? scores(x.ev).total : null);
+    const items = ep.candidates.map(c => ({c, r:C.retainedFor(ep, c, db.me)}));
+    const n = items.length;
+    const count = f => items.filter(f).length;
+    const st = x => x.r.h.status;
+    const mineComplete = ep.candidates.filter(c => C.scores(C.get(ep.mine, c.id)).complete).length;
+    const mineDone = ep.candidates.filter(c => C.get(ep.mine, c.id)?.done).length;
+    const validated = count(x => x.r.validated);
+    const todo = count(x => C.needsAction(x.r));
+    const majors = count(x => st(x) === "major");
+    const tile = (filter, num, label, tone, extra = "") => `<button type="button" class="ce-tile ${tone}${crossFilter === filter ? " on" : ""}" data-act="filter" data-filter="${filter}" aria-pressed="${crossFilter === filter}">
+      <b>${num}</b><span>${label}</span>${extra ? `<small>${extra}</small>` : ""}</button>`;
+    const filters = {
+      all:() => true, todo:x => C.needsAction(x.r), validated:x => !!x.r.validated,
+      degree:x => st(x) === "major" || st(x) === "degree", choices:x => st(x) === "choices",
+      points:x => st(x) === "points", incomplete:x => st(x) === "incomplete", accord:x => st(x) === "accord"
+    };
+    let shown = items.filter(filters[crossFilter] || filters.all);
+    if (crossSort === "priority") {
+      shown = shown.slice().sort((a, b) => (!!a.r.validated - !!b.r.validated) || STATUS[st(a)].rank - STATUS[st(b)].rank || a.c.name.localeCompare(b.c.name, "fr"));
+    }
+    const rows = shown.map(({c, r}) => {
+      const totals = r.entries.map(x => x.ev ? C.scores(x.ev).total : null);
       const known = totals.filter(t => t != null);
       const gap = known.length > 1 ? Math.max(...known) - Math.min(...known) : null;
-      const cf = conflicts(ep, c);
-      const fin = scores(finalEval(ep, c)).total;
-      const flag = cf.pending ? `<span class="ce-tag wait">En attente</span>`
-        : cf.degree || cf.choices.length ? `<span class="ce-tag bad">${cf.degree ? cf.degree + " désaccord(s) de degré" : ""}${cf.choices.length ? (cf.degree ? " · " : "") + "choix différents" : ""}</span>`
-        : cf.points ? `<span class="ce-tag mid">${cf.points} écart(s) de points</span>` : `<span class="ce-tag ok">Accord</span>`;
-      return `<tr data-act="cross-open" data-id="${c.id}">
-        <td><b>${esc(c.name)}</b>${ep.final[c.id]?.validated ? " ✅" : ""}</td>
+      const degCount = GRID.filter(cr => r.h.crits[cr.id].mustDecide).length;
+      const detail = degCount ? ` <small>${degCount} critère(s)</small>` : st({r}) === "points" ? ` <small>${GRID.filter(cr => r.h.crits[cr.id].status === "points").length} critère(s)</small>` : "";
+      const note = r.validated
+        ? `<b class="ce-validated">✅ ${fmt(r.total)}</b><small>validée${r.stale ? " · ⚠️ à revoir" : ""}</small>`
+        : r.total != null ? `<span class="ce-prov">${fmt(r.total)}</span><small>provisoire</small>`
+        : `<span class="ce-prov">—</span><small>${r.h.pending ? r.h.pending + " à trancher" : r.h.evaluators < 2 ? "en attente" : "incomplète"}</small>`;
+      return `<tr data-act="cross-open" data-id="${esc(c.id)}">
+        <td><b>${esc(c.name)}</b>${c.classroom ? ` <small>${esc(c.classroom)}</small>` : ""}</td>
         ${totals.map(t => `<td class="num">${fmt(t)}</td>`).join("")}
         <td class="num${gap >= 2 ? " ce-big-gap" : ""}">${fmt(gap)}</td>
-        <td>${flag}</td>
-        <td class="num"><b>${fmt(fin)}</b></td></tr>`;
+        <td>${tag(r.h.status)}${detail}</td>
+        <td class="num ce-note">${note}</td></tr>`;
     }).join("");
     main.innerHTML = `<section class="ce-card">
-      <div class="ce-cross-head"><h2>Croisement des évaluations</h2>
-        <div class="ce-actions"><button type="button" data-act="csv">⬇️ Export CSV</button><button type="button" data-act="print">🖨️ Imprimer</button></div></div>
+      <div class="ce-cross-head"><h2>Tableau de bord du jury</h2>
+        <div class="ce-actions"><button type="button" data-act="stats">📊 Bilan du jury</button></div></div>
       ${names.length < 2 ? `<p class="ce-warn">Aucune évaluation de collègue reçue : va dans « Échanger » pour scanner son QR.</p>` : ""}
-      <p class="ce-hint">Note retenue = moyenne des évaluateurs arrondie au ¼ de point, modifiable critère par critère. Touchez un candidat pour le détail.</p>
+      <div class="ce-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${n}" aria-valuenow="${validated}">
+        <div style="width:${n ? validated / n * 100 : 0}%"></div></div>
+      <p class="ce-hint">${validated} note(s) validée(s) sur ${n} · mes fiches : ${mineComplete} complète(s), ${mineDone} terminée(s)</p>
+      <div class="ce-tiles">
+        ${tile("all", n, "Candidats", "neutral")}
+        ${tile("incomplete", count(x => st(x) === "incomplete"), "En attente / incomplets", "wait")}
+        ${tile("accord", count(x => st(x) === "accord"), "✓ Accord", "ok")}
+        ${tile("points", count(x => st(x) === "points"), "≈ Écart de points", "mid")}
+        ${tile("degree", count(filters.degree), "≠ Désaccord de degré", "bad", majors ? `dont ${majors} majeur(s) ‼` : "")}
+        ${tile("choices", count(filters.choices), "⇄ Choix différents", "bad")}
+        ${tile("validated", validated, "✅ Validés", "ok")}
+      </div>
+      <div class="ce-actions">
+        <button type="button" class="${crossFilter === "todo" ? "ce-primary" : ""}" data-act="filter" data-filter="todo">⚠️ Candidats à harmoniser (${todo})</button>
+        <label class="ce-inline">Ordre <select id="ceSort"><option value="name"${crossSort === "name" ? " selected" : ""}>alphabétique</option><option value="priority"${crossSort === "priority" ? " selected" : ""}>par priorité</option></select></label>
+      </div>
+      <p class="ce-hint">Note provisoire : décision du jury, sinon moyenne au ¼ de point quand le degré est commun. En cas de degrés différents, rien n'est proposé : le jury tranche. Touchez un candidat pour harmoniser.</p>
       <div class="ce-table"><table>
-        <thead><tr><th>Candidat</th>${names.map(n => `<th>${esc(n)}</th>`).join("")}<th>Écart</th><th>Croisement</th><th>Retenue /20</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>
+        <thead><tr><th>Candidat</th>${names.map(nm => `<th class="num">${esc(nm)}</th>`).join("")}<th class="num">Écart</th><th>Croisement</th><th class="num">Note /20</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="${names.length + 4}" class="ce-hint">Aucun candidat pour ce filtre.</td></tr>`}</tbody></table></div>
+      <div class="ce-actions">
+        <button type="button" data-act="csv">⬇️ CSV synthèse</button>
+        <button type="button" data-act="csv-detail">⬇️ CSV détaillé (degrés)</button>
+        <button type="button" data-act="csv-history">⬇️ Historique des décisions</button>
+        <button type="button" data-act="print-sheets">🖨️ Fiches par candidat</button>
+        <button type="button" data-act="print">🖨️ Ce tableau</button>
+      </div>
     </section>`;
   }
+
+  /* =========================
+     3 · CROISER — harmonisation d'un candidat
+  ========================= */
 
   function renderCrossDetail(main, ep, cand) {
-    const evs = evaluatorsFor(ep, cand);
-    const fin = finalEval(ep, cand);
-    const finS = scores(fin);
+    const r = C.retainedFor(ep, cand, db.me);
+    const {h, entries} = r;
+    const locked = !!r.validated;
     const idx = ep.candidates.indexOf(cand);
-    const cell = (cr, ev) => {
-      if (!ev || ev.v[cr.id] == null) return `<td class="num">—</td>`;
-      const d = degreeOf(cr, ev.v[cr.id], ev.d[cr.id]);
-      return `<td class="num"><span class="ce-dot d${d}">${cr.names ? cr.names[d - 1] : "D" + d}</span> ${fmt(ev.v[cr.id])}</td>`;
-    };
-    const choiceRow = (field, label, map) => {
-      const vals = evs.map(x => x.ev?.[field] || "");
-      const diff = new Set(vals.filter(Boolean)).size > 1;
-      const opts = `<option value=""${fin[field] ? "" : " selected"}>—</option>` + Object.entries(map).map(([k, v]) => `<option value="${k}"${fin[field] === k ? " selected" : ""}>${esc(v)}</option>`).join("");
-      return `<tr class="${diff ? "ce-row-bad" : ""}"><td>${label}</td>${vals.map(v => `<td>${esc(map[v] || "—")}</td>`).join("")}<td></td>
-        <td>${field === "theme" ? esc(map[fin.theme] || "—") : `<select data-act="final-choice" data-field="${field}">${opts}</select>`}</td></tr>`;
-    };
+    const totals = entries.map(x => x.ev ? C.scores(x.ev).total : null);
+    const known = totals.filter(t => t != null);
+    const gap = known.length > 1 ? Math.max(...known) - Math.min(...known) : null;
+    const nDeg = GRID.filter(cr => ["major", "degree"].includes(h.crits[cr.id].status)).length;
+    const nDiv = h.divergences;
+    const shownEv = r.ev;
+    const shownS = r.validated ? {total:r.validated.total, afl1:r.validated.afl1, afl2:r.validated.afl2, afl3:r.validated.afl3} : h.scores;
+
+    const evaluators = entries.map((x, i) => `<div class="ce-who"><b>${esc(x.name)}</b>
+      <span>${x.ev ? `${fmt(totals[i])} / 20${x.ev.done ? " · 🔒 terminée" : ""}` : "non reçue"}</span></div>`).join("");
+    const comments = entries.filter(x => x.ev?.comment).map(x => `<p class="ce-remark"><b>${esc(x.name)} :</b> ${esc(x.ev.comment)}</p>`).join("");
+    const noteLine = r.validated
+      ? `<div class="ce-final ok">✅ <b>Note validée : ${fmt(r.total)} / 20</b><small>le ${when(r.validated.at)} par ${esc(r.validated.by)}</small></div>
+         ${r.stale ? `<p class="ce-warn">⚠️ Des évaluations ont changé depuis la validation : la note validée n'a pas bougé. Modifie-la si besoin.</p>` : ""}`
+      : `<div class="ce-final">📝 Note provisoire : <b>${h.scores.total != null ? fmt(h.scores.total) + " / 20" : "incomplète"}</b><small>non validée</small></div>`;
+
+    const choicesCard = choicesHTML(h, entries, locked);
     let last = "";
-    const critRows = GRID.map(cr => {
-      const vals = evs.map(x => x.ev?.v[cr.id]).filter(x => x != null);
-      const degs = evs.map(x => x.ev?.v[cr.id] == null ? null : degreeOf(cr, x.ev.v[cr.id], x.ev.d[cr.id])).filter(Boolean);
-      const gap = vals.length > 1 ? Math.max(...vals) - Math.min(...vals) : null;
-      const cls = vals.length > 1 && new Set(degs).size > 1 ? "ce-row-bad" : gap >= .5 ? "ce-row-mid" : "";
-      const overridden = typeof ep.final[cand.id]?.[cr.id] === "number";
-      const opts = [`<option value="">${overridden ? "Moyenne" : "Moyenne (" + fmt(fin.v[cr.id]) + ")"}</option>`]
-        .concat(stepsOf([0, cr.max]).map(x => `<option value="${x}"${overridden && fin.v[cr.id] === x ? " selected" : ""}>${fmt(x)}</option>`)).join("");
-      const head = cr.group !== last ? `<tr class="ce-group-row"><td colspan="${evs.length + 3}">${esc(cr.afl === "AFL1" ? "AFL1 · " + cr.group : cr.group)}</td></tr>` : "";
+    const cards = GRID.map(cr => {
+      const html = critCardHTML(ep, cand, cr, h, entries, locked);
+      if (!html) return "";
+      const head = cr.group !== last ? `<h3 class="ce-hgroup">${esc(cr.afl === "AFL1" ? "AFL1 · " + cr.group : cr.group)}</h3>` : "";
       last = cr.group;
-      return `${head}<tr class="${cls}"><td>${esc(cr.label)} <small>/${cr.max}</small></td>${evs.map(x => cell(cr, x.ev)).join("")}
-        <td class="num">${fmt(gap)}</td>
-        <td><select data-act="final" data-crit="${cr.id}" class="${overridden ? "on" : ""}">${opts}</select></td></tr>`;
+      return head + html;
     }).join("");
-    const totalRow = (label, key, max) => `<tr class="ce-sum"><td>${label}</td>${evs.map(x => `<td class="num">${x.ev ? fmt(scores(x.ev)[key]) : "—"}</td>`).join("")}<td></td><td class="num"><b>${fmt(finS[key])}</b>${max ? " /" + max : ""}</td></tr>`;
-    const [w2, w3] = SPLITS[fin.split] || [];
-    const comments = evs.filter(x => x.me && x.ev?.comment).map(x => `<p><b>${esc(x.name)} :</b> ${esc(x.ev.comment)}</p>`).join("");
-    main.innerHTML = `<section class="ce-card">
+
+    const mine = C.get(ep.mine, cand.id);
+    let initial = "";
+    if (mine?.initial) {
+      const changed = GRID.filter(cr => mine.initial.v[cr.id] !== mine.v[cr.id]).map(cr => cr.label);
+      ["theme", "split", "role"].forEach(f => { if (mine.initial[f] !== mine[f]) changed.unshift(CHOICE_FIELDS[f].label); });
+      initial = `<details class="ce-initial"><summary>Mon évaluation initiale (${fmt(C.scores(mine.initial).total)} / 20, terminée le ${when(mine.doneAt || mine.initial.at)})${changed.length ? " · modifiée depuis" : ""}</summary>
+        ${changed.length ? `<p class="ce-warn">Modifié après la première validation : ${esc(changed.join(", "))}</p>` : `<p class="ce-hint">Inchangée depuis.</p>`}
+        ${recapTable(mine.initial)}</details>`;
+    }
+
+    main.innerHTML = `<section class="ce-card ce-hsum">
       <div class="ce-nav">
         <button type="button" data-act="cross-back">← Tableau</button>
-        <button type="button" data-act="cross-step" data-step="-1" ${idx === 0 ? "disabled" : ""}>←</button>
-        <h2>${esc(cand.name)}</h2>
-        <button type="button" data-act="cross-step" data-step="1" ${idx === ep.candidates.length - 1 ? "disabled" : ""}>→</button>
+        <button type="button" data-act="cross-step" data-step="-1" aria-label="Candidat précédent" ${idx === 0 ? "disabled" : ""}>←</button>
+        <h2>${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</h2>
+        <button type="button" data-act="cross-step" data-step="1" aria-label="Candidat suivant" ${idx === ep.candidates.length - 1 ? "disabled" : ""}>→</button>
       </div>
-      <p class="ce-hint"><span class="ce-tag bad">rouge</span> degrés différents · <span class="ce-tag mid">orange</span> même degré, écart ≥ 0,5 pt</p>
-      <div class="ce-table"><table>
-        <thead><tr><th>Critère</th>${evs.map(x => `<th>${esc(x.name)}</th>`).join("")}<th>Écart</th><th>Retenu</th></tr></thead>
-        <tbody>
-          ${choiceRow("theme", "Thème", THEMES)}
-          ${choiceRow("split", "Répartition", {"4-4":"4-4", "6-2":"6-2", "2-6":"2-6"})}
-          ${choiceRow("role", "Rôle AFL3", ROLES)}
-          ${critRows}
-          ${totalRow("AFL1", "afl1", 12)}
-          ${totalRow("AFL2", "afl2", w2)}
-          ${totalRow("AFL3", "afl3", w3)}
-          ${totalRow("Total", "total", 20)}
-        </tbody></table></div>
-      ${comments}
+      <div class="ce-kv">
+        <span><small>Thème</small><b>${esc(THEMES[shownEv.theme] || "à choisir")}</b></span>
+        <span><small>Répartition</small><b>${esc(shownEv.split || "à choisir")}</b></span>
+        <span><small>Rôle AFL3</small><b>${esc(ROLES[shownEv.role] || "à choisir")}</b></span>
+        <span><small>Écart total</small><b>${fmt(gap)}</b></span>
+        <span><small>Critères en désaccord</small><b>${nDiv}${nDeg ? ` (dont ${nDeg} de degré)` : ""}</b></span>
+        <span><small>Croisement</small>${tag(h.status)}</span>
+      </div>
+      <div class="ce-whos">${evaluators}</div>
+      ${noteLine}
+      <p class="ce-hint">AFL1 ${fmt(shownS.afl1)} / 12 · AFL2 ${fmt(shownS.afl2)} · AFL3 ${fmt(shownS.afl3)}</p>
+      ${nDiv ? `<div class="ce-progress small" role="progressbar" aria-valuemin="0" aria-valuemax="${nDiv}" aria-valuenow="${h.treated}"><div style="width:${h.treated / nDiv * 100}%"></div></div>
+        <p class="ce-hint"><b>${h.treated} désaccord(s) traité(s) sur ${nDiv}</b> (décision explicite du jury)</p>` : ""}
       <div class="ce-actions">
-        <button type="button" class="ce-primary" data-act="validate">${ep.final[cand.id]?.validated ? "✅ Note validée" : "Valider la note harmonisée"}</button>
-        <button type="button" data-act="reset-final">Revenir aux moyennes</button>
+        <button type="button" data-act="next-crit"${nDiv ? "" : " disabled"}>➡️ Critère suivant à harmoniser</button>
+        <button type="button" data-act="only-div" aria-pressed="${onlyDivergent}" class="${onlyDivergent ? "ce-primary" : ""}">${onlyDivergent ? "Voir tous les critères" : "Voir uniquement les désaccords"}</button>
       </div>
+      ${comments}
+      ${initial}
+    </section>
+    ${choicesCard}
+    <section class="ce-card">${cards || `<p class="ce-hint">Aucun désaccord sur les critères ✓</p>`}</section>
+    <section class="ce-card">
+      ${locked
+        ? `<div class="ce-actions"><button type="button" data-act="unvalidate">✏️ Modifier la note validée</button><button type="button" data-act="print-one">🖨️ Imprimer la fiche</button></div>`
+        : `${h.blockers.length ? `<p class="ce-warn">Avant de valider :</p><ul class="ce-blockers">${h.blockers.map(b => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}
+          <div class="ce-actions">
+            <button type="button" class="ce-primary" data-act="validate"${h.blockers.length ? " disabled" : ""}>✅ Valider la note harmonisée</button>
+            <button type="button" data-act="reset-final">↺ Réinitialiser l'harmonisation</button>
+            <button type="button" data-act="print-one">🖨️ Imprimer la fiche</button>
+          </div>`}
     </section>`;
   }
 
-  function finalStore(ep, candId) {
-    return ep.final[candId] || (ep.final[candId] = {});
+  /* Thème, répartition et rôle : côte à côte, à trancher s'ils diffèrent. */
+  function choicesHTML(h, entries, locked) {
+    const differ = Object.values(h.choices).some(c => c.differ);
+    const rows = Object.entries(CHOICE_FIELDS).map(([f, meta]) => {
+      const c = h.choices[f];
+      const evs = entries.map((x, i) => `<span class="ce-chip-ro"><small>${esc(x.name)}</small>${esc(meta.map[c.vals[i]] || "—")}</span>`).join("");
+      const btns = Object.entries(meta.map).map(([k, v]) => `<button type="button" class="${c.value === k ? "on" : ""}" data-act="pick-choice" data-field="${f}" data-value="${k}" aria-pressed="${c.value === k}"${locked ? " disabled" : ""}>${esc(v)}</button>`).join("");
+      return `<div class="ce-choice-row${c.differ ? " bad" : ""}">
+        <div class="ce-choice-label"><b>${meta.label}</b>${c.differ ? (c.decided ? ` <span class="ce-tag ok">✓ tranché</span>` : ` <span class="ce-tag bad">⇄ à trancher</span>`) : ""}</div>
+        <div class="ce-chip-row">${evs}</div>
+        <div class="ce-choice"><span>Retenu</span>${btns}</div></div>`;
+    }).join("");
+    return `<section class="ce-card${differ ? " ce-alert" : ""}">
+      ${differ ? `<p class="ce-alert-text">⚠️ <b>Les évaluateurs n'ont pas fait les mêmes choix.</b> Le jury doit confirmer le choix retenu avant la validation ; les pondérations sont recalculées aussitôt.</p>` : `<h3>Choix de l'élève</h3>`}
+      ${rows}
+    </section>`;
   }
 
-  function csv(ep) {
-    const names = [db.me, ...Object.keys(ep.others)];
-    const head = ["Candidat", "Thème", "Répartition", "Rôle AFL3", ...GRID.map(c => c.label + " (retenu)"), "AFL1", "AFL2", "AFL3", ...names.map(n => "Total " + n), "Note retenue /20", "Validée"];
-    const lines = [head];
-    ep.candidates.forEach(c => {
-      const fin = finalEval(ep, c), s = scores(fin);
-      const evs = evaluatorsFor(ep, c);
-      lines.push([c.name, THEMES[fin.theme] || "", fin.split, ROLES[fin.role] || "", ...GRID.map(cr => fmt(fin.v[cr.id])), fmt(s.afl1), fmt(s.afl2), fmt(s.afl3),
-        ...evs.map(x => x.ev ? fmt(scores(x.ev).total) : ""), fmt(s.total), ep.final[c.id]?.validated ? "oui" : "non"]);
-    });
-    const text = "﻿" + lines.map(l => l.map(x => `"${String(x).replace(/"/g, '""').replace(/^—$/, "")}"`).join(";")).join("\r\n");
+  function critCardHTML(ep, cand, cr, h, entries, locked) {
+    const st = h.crits[cr.id];
+    if (onlyDivergent && !st.divergent) return "";
+    const key = cand.id + ":" + cr.id;
+    const open = openCrits[key] ?? (st.divergent && st.source !== "jury");
+    const dis = locked ? " disabled" : "";
+    const marks = entries.map((x, i) => {
+      const m = st.marks[i];
+      return `<span class="ce-mark"><small>${esc(x.name)}</small>${m ? `${dot(cr, m.d)} ${fmt(m.v)}` : "—"}</span>`;
+    }).join("");
+    const sourceLabel = {jury:"décision du jury", moyenne:"moyenne", unique:"seule note"}[st.source] || "";
+    const retained = st.value != null ? `<b>${fmt(st.value)}</b> <small>${sourceLabel}</small>` : st.mustDecide ? `<b class="ce-todo">à trancher</b>` : "—";
+
+    // Étape 1 : degrés de chacun et leurs descripteurs, côte à côte.
+    const compare = entries.map((x, i) => {
+      const m = st.marks[i];
+      if (!m) return `<div class="ce-cmp"><b>${esc(x.name)}</b><p class="ce-hint">Pas de note.</p></div>`;
+      const desc = C.descOf(cr, x.ev.role);
+      return `<div class="ce-cmp d${m.d}"><b>${esc(x.name)}</b> ${dot(cr, m.d)} <span>${fmt(m.v)} pt</span>
+        <p>${esc(desc ? desc[m.d - 1] : "")}</p>${cr.descByRole && x.ev.role ? `<small>Grille « ${esc(ROLES[x.ev.role])} »</small>` : ""}</div>`;
+    }).join("");
+    const roleWarn = cr.id === "role" && h.ev.role
+      ? entries.filter(x => x.ev?.v?.role != null && x.ev.role && x.ev.role !== h.ev.role).map(x => x.name) : [];
+    const desc = C.descOf(cr, h.ev.role);
+    const selDeg = st.decision?.deg || st.deg || 0;
+    const degBtns = desc
+      ? cr.deg.map(([a, b], i) => `<button type="button" class="ce-deg d${i + 1}${selDeg === i + 1 ? " on" : ""}" data-act="h-deg" data-crit="${cr.id}" data-deg="${i + 1}" aria-pressed="${selDeg === i + 1}"${dis}>
+          <b>${cr.names ? cr.names[i] : "Degré " + (i + 1)} <small>${a === b ? fmt(a) : fmt(a) + "–" + fmt(b)}</small></b><span>${esc(desc[i])}</span></button>`).join("")
+      : `<p class="ce-hint">Choisis d'abord le rôle AFL3 retenu (plus haut) pour afficher la bonne grille.</p>`;
+
+    // Étape 2 : note précise dans le degré retenu ; la moyenne n'est proposée que si elle y entre.
+    let step2 = "";
+    if (selDeg && desc) {
+      const range = cr.deg[selDeg - 1];
+      const meanOk = st.count > 1 && C.inRange(cr, selDeg, st.mean);
+      const chips = C.stepsOf(range).map(x => `<button type="button" class="${st.value === x && st.deg === selDeg ? "on" : ""}${meanOk && st.mean === x ? " mean" : ""}" data-act="h-val" data-crit="${cr.id}" data-deg="${selDeg}" data-value="${x}" aria-pressed="${st.value === x}"${dis}>${fmt(x)}${meanOk && st.mean === x ? " <small>moy.</small>" : ""}</button>`).join("");
+      step2 = `<div class="ce-step"><h4>Étape 2 · Note dans le degré ${selDeg}</h4>
+        <div class="ce-chips">${chips}</div>
+        ${meanOk && st.source !== "jury" ? `<button type="button" class="ce-link" data-act="h-val" data-crit="${cr.id}" data-deg="${selDeg}" data-value="${st.mean}"${dis}>Retenir la moyenne des notes initiales (${fmt(st.mean)})</button>`
+          : st.count > 1 && !meanOk ? `<p class="ce-hint">La moyenne des notes initiales (${fmt(st.mean)}) n'appartient pas à ce degré : elle n'est pas proposée.</p>` : ""}
+      </div>`;
+    }
+
+    return `<details class="ce-hcard ${STATUS[st.status].tone}" id="crit-${cr.id}" data-crit="${cr.id}"${open ? " open" : ""}>
+      <summary>
+        <span class="ce-hcard-title"><b>${esc(cr.label)}</b> <small>/${cr.max}</small></span>
+        ${tag(st.status)}
+        <span class="ce-marks">${marks}</span>
+        <span class="ce-retained">Retenu : ${retained}</span>
+      </summary>
+      <div class="ce-hcard-body">
+        <div class="ce-step"><h4>Étape 1 · Degré retenu</h4>
+          <div class="ce-cmps">${compare}</div>
+          ${roleWarn.length ? `<p class="ce-warn">⚠️ ${esc(roleWarn.join(", "))} : critère noté avec l'autre grille de rôle. Vérifie le degré avec la grille retenue.</p>` : ""}
+          <div class="ce-degs">${degBtns}</div>
+        </div>
+        ${step2}
+        ${st.decision && !locked ? `<button type="button" class="ce-link" data-act="h-reset-crit" data-crit="${cr.id}">↺ Revenir aux notes initiales pour ce critère</button>` : ""}
+      </div>
+    </details>`;
+  }
+
+  function marksText(cr, h, entries) {
+    return entries.map((x, i) => {
+      const m = h.crits[cr.id].marks[i];
+      return `${x.name} : ${m ? `D${m.d} ${fmt(m.v)}` : "—"}`;
+    }).join(" · ");
+  }
+
+  function decide(ep, cand, critId, deg, value) {
+    const cr = C.critById(critId);
+    const f = finalStore(ep, cand.id);
+    const prev = C.get(f.crit, critId);
+    const range = cr.deg[deg - 1];
+    let v = value;
+    if (v == null) v = range[0] === range[1] ? range[0] : prev?.v != null && C.inRange(cr, deg, prev.v) ? prev.v : null;
+    f.crit[critId] = {deg, v};
+    f.updatedAt = Date.now();
+    if (v != null && (prev?.v !== v || prev?.deg !== deg)) {
+      const h = C.harmonize(C.entriesFor(ep, cand, db.me), null);
+      log(ep, {type:"decision", cand:cand.id, candName:cand.name, crit:critId, initial:marksText(cr, h, C.entriesFor(ep, cand, db.me)),
+        deg, v, from:prev?.v != null ? `D${prev.deg} ${fmt(prev.v)}` : ""});
+    }
+    openCrits[cand.id + ":" + critId] = true;
+    save();
+  }
+
+  function nextCrit(ep, cand) {
+    const h = C.harmonize(C.entriesFor(ep, cand, db.me), C.get(ep.final, cand.id));
+    const todo = GRID.filter(cr => h.crits[cr.id].divergent && h.crits[cr.id].source !== "jury").map(cr => cr.id);
+    if (!todo.length) { toast("Tous les désaccords ont reçu une décision du jury ✓"); return; }
+    const after = todo.find(id => GRID.findIndex(c => c.id === id) > GRID.findIndex(c => c.id === nextCrit.last));
+    const id = after || todo[0];
+    nextCrit.last = id;
+    openCrits[cand.id + ":" + id] = true;
+    const el = $("crit-" + id);
+    if (el) { el.open = true; el.scrollIntoView({block:"start", behavior:"smooth"}); }
+  }
+
+  function openValidate(ep, cand) {
+    const h = C.harmonize(C.entriesFor(ep, cand, db.me), C.get(ep.final, cand.id));
+    if (h.blockers.length) { toast(h.blockers[0]); return; }
+    const single = GRID.filter(cr => h.crits[cr.id].count === 1).map(cr => cr.label);
+    openDialog(`<h2>Valider la note de ${esc(cand.name)} ?</h2>
+      ${recapTable(h.ev)}
+      <p>${h.treated} désaccord(s) tranché(s) explicitement par le jury sur ${h.divergences}.</p>
+      ${single.length ? `<p class="ce-warn">⚠️ Noté(s) par un seul évaluateur : ${esc(single.join(", "))}.</p>` : ""}
+      <p class="ce-hint">La note validée est figée : elle devient la note officiellement retenue par le jury sur cet appareil,
+      et la validation est inscrite dans l'historique au nom de ${esc(db.me)}.</p>
+      <div class="ce-actions"><button type="button" class="ce-primary" data-act="confirm-validate">✅ Confirmer la validation</button><button value="close">Annuler</button></div>`);
+  }
+
+  /* =========================
+     3 · CROISER — bilan du jury
+  ========================= */
+
+  function renderStats(main, ep) {
+    const s = C.juryStats(ep, db.me);
+    const pct = x => x == null ? "—" : Math.round(x) + " %";
+    const back = `<div class="ce-nav"><button type="button" data-act="stats-back">← Tableau de bord</button><h2>Bilan du jury</h2></div>`;
+    if (s.names.length < 2) {
+      main.innerHTML = `<section class="ce-card">${back}<p class="ce-warn">Il faut au moins une évaluation de collègue pour calculer la concordance.</p></section>`;
+      return;
+    }
+    const evalRows = s.perEval.map(e => `<tr><td>${esc(e.name)}</td><td class="num">${e.filled}</td><td class="num">${e.complete}</td><td class="num">${fmt(e.retainedGap == null ? null : Math.round(e.retainedGap * 100) / 100)}</td></tr>`).join("");
+    const pairRows = s.pairs.map(p => `<tr><td>${esc(s.names[p.a])} / ${esc(s.names[p.b])}</td><td class="num">${p.n}</td>
+      <td class="num">${fmt(p.meanAbs == null ? null : Math.round(p.meanAbs * 100) / 100)}</td><td class="num">${p.meanSigned == null ? "—" : (p.meanSigned > 0 ? "+" : "") + fmt(Math.round(p.meanSigned * 100) / 100)}</td></tr>`).join("");
+    const critRows = s.perCrit.map(c => `<tr><td>${esc(c.label)}</td><td class="num">${c.compared}</td><td class="num">${pct(c.compared ? c.agree / c.compared * 100 : null)}</td>
+      <td class="num">${c.degree}${c.major ? ` <small>(dont ${c.major} ‼)</small>` : ""}</td><td class="num">${c.points}</td></tr>`).join("");
+    main.innerHTML = `<section class="ce-card">${back}
+      <p class="ce-hint">Ces indicateurs décrivent la concordance entre évaluateurs sur cette épreuve. Ils ne mesurent pas la qualité d'un évaluateur.</p>
+      <div class="ce-tiles">
+        <div class="ce-tile neutral"><b>${s.crossed}</b><span>Candidats croisés</span></div>
+        <div class="ce-tile ok"><b>${pct(s.exactDegreePct)}</b><span>Accord exact sur les degrés</span><small>${s.compared} comparaison(s) critère</small></div>
+        <div class="ce-tile bad"><b>${s.withDegree}</b><span>Candidats avec ≥ 1 désaccord de degré</span></div>
+        <div class="ce-tile mid"><b>${s.needed}</b><span>Dossiers à harmoniser</span></div>
+        <div class="ce-tile ok"><b>${s.validated}</b><span>Notes validées</span></div>
+      </div>
+      <h3>Par évaluateur</h3>
+      <div class="ce-table"><table><thead><tr><th>Évaluateur</th><th class="num">Fiches</th><th class="num">Complètes</th><th class="num">Écart moyen avec la note retenue</th></tr></thead><tbody>${evalRows}</tbody></table></div>
+      <h3>Par paire d'évaluateurs (totaux initiaux)</h3>
+      <div class="ce-table"><table><thead><tr><th>Paire</th><th class="num">Candidats</th><th class="num">Écart moyen absolu</th><th class="num">Écart moyen signé</th></tr></thead><tbody>${pairRows}</tbody></table></div>
+      <h3>Par critère</h3>
+      <div class="ce-table"><table><thead><tr><th>Critère</th><th class="num">Comparaisons</th><th class="num">Accord de degré</th><th class="num">Désaccords de degré</th><th class="num">Écarts de points</th></tr></thead><tbody>${critRows}</tbody></table></div>
+      ${s.names.length === 2 ? diffChart(s) : ""}
+      <div class="ce-actions"><button type="button" data-act="csv-stats">⬇️ Export anonymisé (CSV)</button></div>
+    </section>`;
+  }
+
+  /* Deux évaluateurs : écart moyen par critère (A − B), barres de part et d'autre de zéro.
+     Chaque valeur est écrite en clair ; la couleur ne fait que doubler le sens. */
+  function diffChart(s) {
+    const p = s.pairs[0];
+    const [a, b] = [s.names[p.a], s.names[p.b]];
+    const crits = p.crit.filter(c => c.n);
+    if (!crits.length) return "";
+    const maxAbs = Math.max(.25, ...crits.map(c => Math.abs(c.meanSigned)));
+    const rows = crits.map(c => {
+      const w = Math.abs(c.meanSigned) / maxAbs * 50;
+      const val = Math.round(c.meanSigned * 100) / 100;
+      const who = val > 0 ? `${a} note plus haut` : val < 0 ? `${b} note plus haut` : "identique en moyenne";
+      return `<div class="ce-bar-row" title="${esc(c.label)} : ${val > 0 ? "+" : ""}${fmt(val)} pt en moyenne (${esc(who)}, ${c.n} candidat(s))">
+        <span class="ce-bar-label">${esc(c.label)}</span>
+        <span class="ce-bar-track"><span class="ce-bar-zero"></span>
+          <span class="ce-dbar ${val >= 0 ? "pos" : "neg"}" style="${val >= 0 ? "left:50%" : `left:${50 - w}%`};width:${w}%"></span></span>
+        <span class="ce-bar-val">${val > 0 ? "+" : ""}${fmt(val)}</span></div>`;
+    }).join("");
+    return `<h3>Différence moyenne par critère (${esc(a)} − ${esc(b)}, en points)</h3>
+      <p class="ce-hint"><span class="ce-key pos"></span> ${esc(a)} note plus haut · <span class="ce-key neg"></span> ${esc(b)} note plus haut. Touchez une ligne pour le détail.</p>
+      <div class="ce-bars">${rows}</div>`;
+  }
+
+  /* =========================
+     EXPORTS ET IMPRESSION
+  ========================= */
+
+  /* CSV pour Excel (séparateur ;). Un texte qui commence par = + - @ est neutralisé. */
+  function csvDownload(name, lines) {
+    const cell = x => {
+      let s = String(x ?? "").replace(/^—$/, "");
+      if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(,\d+)?$/.test(s)) s = "'" + s;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const text = "﻿" + lines.map(l => l.map(cell).join(";")).join("\r\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([text], {type:"text/csv;charset=utf-8"}));
-    a.download = `coeval_${normName(ep.title).replace(/ /g, "-")}.csv`;
+    a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  function statusText(r) {
+    if (r.validated) return r.stale ? "Validée (évaluations modifiées depuis)" : "Validée";
+    if (r.h.evaluators < 2) return "En attente d'une évaluation";
+    if (r.h.pending || Object.values(r.h.choices).some(c => c.differ && !c.decided)) return "À harmoniser";
+    return r.total != null ? "Provisoire" : "Incomplète";
+  }
+
+  function csvSummary(ep) {
+    const names = [db.me, ...Object.keys(ep.others)];
+    const lines = [["Candidat", "Classe", "Thème", "Répartition AFL2/AFL3", "Rôle AFL3", ...names.map(n => "Total " + n), "Écart total",
+      "AFL1 retenu", "AFL2 retenu", "AFL3 retenu", "Note harmonisée /20", "Statut", "Croisement", "Validée le", "Validée par"]];
+    ep.candidates.forEach(c => {
+      const r = C.retainedFor(ep, c, db.me);
+      const totals = r.entries.map(x => x.ev ? C.scores(x.ev).total : null);
+      const known = totals.filter(t => t != null);
+      const s = r.validated || r.h.scores;
+      lines.push([c.name, c.classroom, THEMES[r.ev.theme] || "", r.ev.split, ROLES[r.ev.role] || "", ...totals.map(fmt),
+        fmt(known.length > 1 ? Math.max(...known) - Math.min(...known) : null), fmt(s.afl1), fmt(s.afl2), fmt(s.afl3), fmt(r.total),
+        statusText(r), STATUS[r.h.status].label, r.validated ? when(r.validated.at) : "", r.validated?.by || ""]);
+    });
+    csvDownload(`coeval_${slug(ep.title)}_synthese.csv`, lines);
+  }
+
+  function csvDetail(ep) {
+    const names = [db.me, ...Object.keys(ep.others)];
+    const lines = [["Candidat", "Classe", "Bloc", "Critère", "Barème", ...names.flatMap(n => ["Degré " + n, "Points " + n]),
+      "Croisement", "Écart de points", "Degré retenu", "Points retenus", "Origine", "Statut de la note"]];
+    const origin = {jury:"Décision du jury", moyenne:"Moyenne (même degré)", unique:"Seule note"};
+    ep.candidates.forEach(c => {
+      const r = C.retainedFor(ep, c, db.me);
+      GRID.forEach(cr => {
+        const st = r.h.crits[cr.id];
+        const v = r.ev.v[cr.id];
+        const d = v != null ? C.degreeOf(cr, v, r.ev.d?.[cr.id]) : 0;
+        lines.push([c.name, c.classroom, cr.afl === "AFL1" ? "AFL1 · " + cr.group : cr.group, cr.label, cr.max,
+          ...st.marks.flatMap(m => m ? [C.degreeName(cr, m.d), fmt(m.v)] : ["", ""]),
+          STATUS[st.status].label, fmt(st.gap), d ? C.degreeName(cr, d) : "", fmt(v),
+          origin[st.source] || (st.mustDecide ? "À trancher" : ""), statusText(r)]);
+      });
+    });
+    csvDownload(`coeval_${slug(ep.title)}_detail.csv`, lines);
+  }
+
+  const HISTORY_TYPES = {
+    "decision":"Décision sur un critère", "decision-reset":"Retour aux notes initiales", "choice":"Choix retenu",
+    "harmonisation-reset":"Harmonisation réinitialisée", "validate":"Note validée", "unvalidate":"Validation annulée",
+    "eval-done":"Fiche terminée", "eval-reopen":"Fiche rouverte", "eval-edit":"Fiche modifiée après validation"
+  };
+
+  function csvHistory(ep) {
+    const lines = [["Date", "Candidat", "Action", "Objet", "Évaluations initiales", "Degré retenu", "Note retenue", "Valeur précédente", "Enregistré par (déclaratif)"]];
+    ep.history.forEach(e => {
+      const cr = e.crit ? C.critById(e.crit) : null;
+      const object = cr ? cr.label : e.field ? (CHOICE_FIELDS[e.field]?.label || e.field) : "";
+      lines.push([when(e.at), e.candName || candById(ep, e.cand)?.name || "", HISTORY_TYPES[e.type] || e.type, object, e.initial || "",
+        cr && e.deg ? C.degreeName(cr, e.deg) : "", e.v != null ? fmt(e.v) : e.total != null ? fmt(e.total) : e.to || "", e.from || "", e.by || ""]);
+    });
+    csvDownload(`coeval_${slug(ep.title)}_historique.csv`, lines);
+    toast("Historique exporté. Sans authentification, l'auteur indiqué est déclaratif.");
+  }
+
+  function csvStats(ep) {
+    const s = C.juryStats(ep, db.me);
+    const alias = i => "Évaluateur " + (i + 1);
+    const round = x => x == null ? null : Math.round(x * 1000) / 1000;
+    const lines = [["Section", "Élément", "Indicateur", "Valeur"],
+      ["Global", "", "Candidats croisés", s.crossed], ["Global", "", "Accord exact sur les degrés (%)", fmt(round(s.exactDegreePct))],
+      ["Global", "", "Candidats avec au moins un désaccord de degré", s.withDegree], ["Global", "", "Dossiers à harmoniser", s.needed],
+      ["Global", "", "Notes validées", s.validated]];
+    s.perEval.forEach((e, i) => {
+      lines.push(["Évaluateur", alias(i), "Fiches", e.filled], ["Évaluateur", alias(i), "Fiches complètes", e.complete],
+        ["Évaluateur", alias(i), "Écart moyen avec la note retenue", fmt(round(e.retainedGap))]);
+    });
+    s.pairs.forEach(p => {
+      const pair = `${alias(p.a)} / ${alias(p.b)}`;
+      lines.push(["Paire", pair, "Candidats comparés", p.n], ["Paire", pair, "Écart moyen absolu", fmt(round(p.meanAbs))],
+        ["Paire", pair, "Écart moyen signé", fmt(round(p.meanSigned))]);
+      p.crit.forEach(c => { if (c.n) lines.push(["Paire · critère", `${pair} · ${c.label}`, "Écart moyen signé", fmt(round(c.meanSigned))]); });
+    });
+    s.perCrit.forEach(c => {
+      lines.push(["Critère", c.label, "Comparaisons", c.compared], ["Critère", c.label, "Désaccords de degré", c.degree],
+        ["Critère", c.label, "dont majeurs", c.major], ["Critère", c.label, "Écarts de points", c.points]);
+    });
+    csvDownload(`coeval_${slug(ep.title)}_bilan-anonyme.csv`, lines);
+  }
+
+  function sheetHTML(ep, cand) {
+    const r = C.retainedFor(ep, cand, db.me);
+    const ev = r.ev;
+    const s = r.validated || r.h.scores;
+    const present = r.entries.filter(x => x.ev);
+    const head = present.map(x => `<th>${esc(x.name)}</th>`).join("");
+    const rows = GRID.map(cr => {
+      const cells = r.entries.map((x, i) => x.ev ? `<td>${r.h.crits[cr.id].marks[i] ? `${C.degreeName(cr, r.h.crits[cr.id].marks[i].d)} · ${fmt(r.h.crits[cr.id].marks[i].v)}` : "—"}</td>` : "").join("");
+      const v = ev.v[cr.id];
+      return `<tr><td>${esc(cr.label)} <small>/${cr.max}</small></td>${cells}<td><b>${v != null ? `${C.degreeName(cr, C.degreeOf(cr, v, ev.d?.[cr.id]))} · ${fmt(v)}` : "—"}</b></td></tr>`;
+    }).join("");
+    const totalRow = (label, key, max) => `<tr class="ce-sum"><td>${label}</td>${r.entries.map(x => x.ev ? `<td>${fmt(C.scores(x.ev)[key])}</td>` : "").join("")}<td><b>${fmt(s[key])}</b>${max ? " / " + max : ""}</td></tr>`;
+    const [w2, w3] = SPLITS[ev.split] || [];
+    return `<section class="ce-sheet-print">
+      <h2>${esc(cand.name)}${cand.classroom ? ` · ${esc(cand.classroom)}` : ""}</h2>
+      <p>${esc(ep.title)} · Musculation CA5</p>
+      <p><b>Thème :</b> ${esc(THEMES[ev.theme] || "—")} · <b>Répartition :</b> ${esc(ev.split || "—")} · <b>Rôle AFL3 :</b> ${esc(ROLES[ev.role] || "—")}</p>
+      <table><thead><tr><th>Critère</th>${head}<th>Retenu</th></tr></thead><tbody>${rows}
+        ${totalRow("AFL1", "afl1", 12)}${totalRow("AFL2", "afl2", w2)}${totalRow("AFL3", "afl3", w3)}${totalRow("Total", "total", 20)}</tbody></table>
+      <p class="ce-sheet-status">${r.validated ? `<b>Note validée par le jury : ${fmt(r.total)} / 20</b> — le ${when(r.validated.at)} (${esc(r.validated.by)})`
+        : `<b>Note provisoire, non validée : ${fmt(r.total)} / 20</b>`}</p>
+      ${present.filter(x => x.ev.comment).map(x => `<p><b>${esc(x.name)} :</b> ${esc(x.ev.comment)}</p>`).join("")}
+      <div class="ce-signs">${present.map(x => `<div>${esc(x.name)}<span></span></div>`).join("")}</div>
+    </section>`;
+  }
+
+  function printSheets(ep, cands) {
+    const box = $("cePrint");
+    box.innerHTML = cands.map(c => sheetHTML(ep, c)).join("");
+    document.body.classList.add("ce-printing");
+    const done = () => { document.body.classList.remove("ce-printing"); box.innerHTML = ""; };
+    window.addEventListener("afterprint", done, {once:true});
+    window.print();
   }
 
   /* =========================
@@ -748,17 +1076,16 @@
   ========================= */
 
   function openCandidates(ep) {
-    const dlg = $("ceDialog");
-    dlg.innerHTML = `<form method="dialog" class="ce-dialog">
-      <h2>Candidats · ${esc(ep.title)}</h2>
+    openDialog(`<h2>Candidats · ${esc(ep.title)}</h2>
       <label class="ce-button ce-primary">📂 Importer la liste CSV (colonne A : NOM Prénom)<input id="ceCsv" type="file" accept=".csv,text/csv,text/plain" hidden></label>
       <p class="ce-hint">Export Pronote accepté tel quel : seuls le nom (colonne A) et la classe sont repris.</p>
       <label>…ou colle la liste (un candidat par ligne)<textarea id="ceNames" rows="8" placeholder="DUPONT Léa&#10;MARTIN Hugo"></textarea></label>
       <div class="ce-actions"><button type="button" class="ce-primary" data-act="add-names">Ajouter</button><button value="close">Fermer</button></div>
-      <ul class="ce-cand-edit">${ep.candidates.map(c => `<li><span>${esc(c.name)}${c.classroom ? ` <small>${esc(c.classroom)}</small>` : ""}</span><button type="button" class="ce-link" data-act="del-cand" data-id="${c.id}">Supprimer</button></li>`).join("")}</ul>
-      <hr><div class="ce-actions"><button type="button" class="ce-link" data-act="rename-epreuve">Renommer l'épreuve</button><button type="button" class="ce-link ce-danger" data-act="del-epreuve">Supprimer l'épreuve</button></div>
-    </form>`;
-    if (!dlg.open) dlg.showModal();
+      <ul class="ce-cand-edit">${ep.candidates.map(c => `<li><span>${esc(c.name)}${c.classroom ? ` <small>${esc(c.classroom)}</small>` : ""}</span><button type="button" class="ce-link" data-act="del-cand" data-id="${esc(c.id)}">Supprimer</button></li>`).join("")}</ul>
+      <hr><div class="ce-actions">
+        <button type="button" class="ce-link" data-act="backup">💾 Sauvegarder l'épreuve</button>
+        <button type="button" class="ce-link" data-act="rename-epreuve">Renommer l'épreuve</button>
+        <button type="button" class="ce-link ce-danger" data-act="del-epreuve">Supprimer l'épreuve</button></div>`);
   }
 
   /* =========================
@@ -767,11 +1094,12 @@
 
   document.addEventListener("click", ev => {
     const tabBtn = ev.target.closest(".ce-tabs button");
-    if (tabBtn) { tab = tabBtn.dataset.tab; crossId = null; render(); return; }
+    if (tabBtn) { tab = tabBtn.dataset.tab; crossId = null; crossView = "table"; render(); return; }
     const el = ev.target.closest("[data-act]");
-    if (!el) return;
+    if (!el || el.disabled) return;
     const ep = active();
     const act = el.dataset.act;
+    const cand = ep && candById(ep, tab === "cross" ? crossId : currentId);
     switch (act) {
       case "set-me": {
         const v = $("ceMeInput").value.trim();
@@ -792,15 +1120,51 @@
       }
       case "set": {
         const e = evalOf(ep, currentId);
-        e[el.dataset.field] = e[el.dataset.field] === el.dataset.value ? "" : el.dataset.value;
+        if (e.done) return;
+        const field = el.dataset.field;
+        const value = e[field] === el.dataset.value ? "" : el.dataset.value;
+        if (field === "role" && e.role && e.v.role != null && value !== e.role) {
+          if (!confirm(`Le critère « Rôle » est déjà noté (${fmt(e.v.role)}) avec la grille « ${ROLES[e.role]} ».\nChanger de rôle conserve cette note, mais elle sera signalée à vérifier avec les nouveaux descripteurs. Continuer ?`)) return;
+          e.recheck = {...(e.recheck || {}), role:true};
+        }
+        logEdit(ep, cand, e, CHOICE_FIELDS[field].label, CHOICE_FIELDS[field].map[e[field]] || "", CHOICE_FIELDS[field].map[value] || "");
+        e[field] = value;
         e.updatedAt = Date.now(); save(); render(); break;
       }
       case "deg": setValue(ep, el.dataset.crit, Number(el.dataset.deg), null); render(); break;
       case "val": setValue(ep, el.dataset.crit, Number(el.dataset.deg), Number(el.dataset.value)); render(); break;
+      case "finish": openFinish(ep, cand); break;
+      case "confirm-done": {
+        const e = evalOf(ep, currentId);
+        e.done = true;
+        e.doneAt = Date.now();
+        if (!e.initial) e.initial = snapshot(e);
+        log(ep, {type:"eval-done", cand:cand.id, candName:cand.name, total:C.scores(e).total});
+        save(); closeDialog();
+        const next = ep.candidates.slice(ep.candidates.indexOf(cand) + 1).concat(ep.candidates).find(c => !C.get(ep.mine, c.id)?.done);
+        if (next) currentId = next.id;
+        render(); window.scrollTo({top:0, behavior:"smooth"});
+        toast(`🔒 Évaluation de ${cand.name} terminée.${next ? ` Suivant : ${next.name}.` : " Toutes tes fiches sont terminées."}`);
+        break;
+      }
+      case "reopen": {
+        const e = evalOf(ep, currentId);
+        if (!confirm(`Rouvrir l'évaluation de ${cand.name} ?\nLa version initiale reste conservée et chaque modification sera consignée dans l'historique.`)) return;
+        e.done = false;
+        e.reopenedAt = Date.now();
+        log(ep, {type:"eval-reopen", cand:cand.id, candName:cand.name});
+        save(); render(); break;
+      }
+      case "single-qr": {
+        openDialog(`<h2>QR de ${esc(cand.name)}</h2><div class="ce-qr">${qrImage(C.singleQR(ep, cand, db.me))}</div>
+          <p class="ce-hint">Ton collègue le scanne dans « Échanger ». Seule cette fiche est mise à jour chez lui.</p>
+          <div class="ce-actions"><button value="close" class="ce-primary">Fermer</button></div>`);
+        break;
+      }
       case "qr-step": shareIndex += Number(el.dataset.step); render(); break;
       case "download": download(ep); break;
       case "copy-code": {
-        const text = qrParts(ep).join("\n");
+        const text = C.qrParts(ep, db.me).join("\n");
         (navigator.clipboard?.writeText(text) || Promise.reject()).then(() => toast("Code copié."), () => prompt("Copie ce code :", text));
         break;
       }
@@ -812,22 +1176,77 @@
       case "drop-other":
         if (confirm(`Retirer l'évaluation de ${el.dataset.name} ?`)) { delete ep.others[el.dataset.name]; save(); render(); }
         break;
+      case "backup": if (ep) backup(ep); break;
+      case "do-restore": doRestore(); break;
+      case "filter": crossFilter = crossFilter === el.dataset.filter && el.dataset.filter !== "all" ? "all" : el.dataset.filter; render(); break;
+      case "stats": crossView = "stats"; render(); window.scrollTo({top:0}); break;
+      case "stats-back": crossView = "table"; render(); break;
       case "cross-open": crossId = el.dataset.id; render(); window.scrollTo({top:0}); break;
       case "cross-back": crossId = null; render(); break;
       case "cross-step": {
         const i = ep.candidates.findIndex(c => c.id === crossId) + Number(el.dataset.step);
-        if (ep.candidates[i]) { crossId = ep.candidates[i].id; render(); }
+        if (ep.candidates[i]) { crossId = ep.candidates[i].id; nextCrit.last = null; render(); window.scrollTo({top:0}); }
         break;
       }
-      case "validate": {
-        const f = finalStore(ep, crossId);
-        f.validated = !f.validated; save(); render(); break;
+      case "only-div": onlyDivergent = !onlyDivergent; render(); break;
+      case "next-crit": nextCrit(ep, cand); break;
+      case "h-deg": decide(ep, cand, el.dataset.crit, Number(el.dataset.deg), null); render(); break;
+      case "h-val": decide(ep, cand, el.dataset.crit, Number(el.dataset.deg), Number(el.dataset.value)); render(); break;
+      case "h-reset-crit": {
+        const f = finalStore(ep, cand.id);
+        const prev = f.crit[el.dataset.crit];
+        delete f.crit[el.dataset.crit];
+        f.updatedAt = Date.now();
+        log(ep, {type:"decision-reset", cand:cand.id, candName:cand.name, crit:el.dataset.crit, from:prev?.v != null ? `D${prev.deg} ${fmt(prev.v)}` : ""});
+        save(); render(); break;
       }
-      case "reset-final": delete ep.final[crossId]; save(); render(); break;
-      case "csv": csv(ep); break;
+      case "pick-choice": {
+        const f = finalStore(ep, cand.id);
+        const field = el.dataset.field;
+        const prev = f.choice[field] || "";
+        if (prev === el.dataset.value) return;
+        f.choice[field] = el.dataset.value;
+        f.updatedAt = Date.now();
+        log(ep, {type:"choice", cand:cand.id, candName:cand.name, field, from:CHOICE_FIELDS[field].map[prev] || "", to:CHOICE_FIELDS[field].map[el.dataset.value]});
+        save(); render(); break;
+      }
+      case "validate": openValidate(ep, cand); break;
+      case "confirm-validate": {
+        const h = C.harmonize(C.entriesFor(ep, cand, db.me), C.get(ep.final, cand.id));
+        if (h.blockers.length) { closeDialog(); toast(h.blockers[0]); return; }
+        const f = finalStore(ep, cand.id);
+        f.validated = C.makeValidation(h, db.me);
+        f.updatedAt = Date.now();
+        log(ep, {type:"validate", cand:cand.id, candName:cand.name, total:h.scores.total});
+        save(); closeDialog(); render(); window.scrollTo({top:0});
+        toast(`✅ Note de ${cand.name} validée : ${fmt(h.scores.total)} / 20.`);
+        break;
+      }
+      case "unvalidate": {
+        const f = finalStore(ep, cand.id);
+        if (!confirm(`Annuler la validation de la note de ${cand.name} (${fmt(f.validated?.total)} / 20) pour la modifier ?\nL'annulation est inscrite dans l'historique.`)) return;
+        log(ep, {type:"unvalidate", cand:cand.id, candName:cand.name, from:fmt(f.validated?.total)});
+        f.validated = null;
+        f.updatedAt = Date.now();
+        save(); render(); break;
+      }
+      case "reset-final": {
+        if (!confirm(`Effacer toutes les décisions d'harmonisation de ${cand.name} et revenir aux notes initiales ?`)) return;
+        const f = finalStore(ep, cand.id);
+        f.crit = {}; f.choice = {};
+        f.updatedAt = Date.now();
+        log(ep, {type:"harmonisation-reset", cand:cand.id, candName:cand.name});
+        save(); render(); break;
+      }
+      case "csv": csvSummary(ep); break;
+      case "csv-detail": csvDetail(ep); break;
+      case "csv-history": csvHistory(ep); break;
+      case "csv-stats": csvStats(ep); break;
+      case "print-sheets": printSheets(ep, ep.candidates); break;
+      case "print-one": printSheets(ep, [cand]); break;
       case "print": window.print(); break;
       case "add-names": {
-        const n = addCandidates(ep, $("ceNames").value.split(/\r?\n/));
+        const n = C.addCandidates(ep, $("ceNames").value.split(/\r?\n/));
         save(); toast(n + " candidat(s) ajouté(s)."); openCandidates(ep); render(); break;
       }
       case "del-cand":
@@ -843,10 +1262,10 @@
         break;
       }
       case "del-epreuve":
-        if (confirm(`Supprimer définitivement « ${ep.title} » et toutes ses notes ?`)) {
+        if (confirm(`Supprimer définitivement « ${ep.title} » et toutes ses notes ?${unsaved(ep) ? "\n⚠️ Elle n'a pas été sauvegardée dans un fichier depuis les dernières modifications." : ""}`)) {
           db.epreuves = db.epreuves.filter(e => e.id !== ep.id);
           db.activeId = db.epreuves[0]?.id || null;
-          save(); $("ceDialog").close(); render();
+          save(); closeDialog(); render();
         }
         break;
     }
@@ -855,26 +1274,24 @@
   document.addEventListener("change", ev => {
     const el = ev.target;
     const ep = active();
-    if (el.id === "ceEpreuve") { db.activeId = el.value; currentId = crossId = null; save(); render(); return; }
-    if (el.id === "ceFile" && el.files[0]) { importFile(el.files[0]); return; }
-    if (el.id === "ceCsv" && el.files[0]) {
+    if (el.id === "ceEpreuve") { db.activeId = el.value; currentId = crossId = null; crossView = "table"; save(); render(); return; }
+    if (el.id === "ceSort") { crossSort = el.value; render(); return; }
+    if (el.id === "ceFile" && el.files[0]) { importFile(el.files[0]); el.value = ""; return; }
+    if (el.id === "ceRestore" && el.files[0]) {
       readTextFile(el.files[0], text => {
-        const {names, classes} = parseCSV(text);
-        const n = addCandidates(ep, names, classes);
-        save(); toast(`${n} élève(s) ajouté(s) sur ${names.length} lu(s).`); openCandidates(ep); render();
+        let d;
+        try { d = JSON.parse(text); } catch (e) { toast("Fichier non reconnu."); return; }
+        openRestore(d);
       });
+      el.value = "";
       return;
     }
-    if (el.dataset.act === "final") {
-      const f = finalStore(ep, crossId);
-      if (el.value === "") delete f[el.dataset.crit]; else f[el.dataset.crit] = Number(el.value);
-      save(); render(); return;
-    }
-    /* Choix à part : « role » est aussi l'id du critère Rôle dans ep.final. */
-    if (el.dataset.act === "final-choice") {
-      const f = finalStore(ep, crossId);
-      (f.choice ||= {})[el.dataset.field] = el.value;
-      save(); render();
+    if (el.id === "ceCsv" && el.files[0]) {
+      readTextFile(el.files[0], text => {
+        const {names, classes} = C.parseCSV(text);
+        const n = C.addCandidates(ep, names, classes);
+        save(); toast(`${n} élève(s) ajouté(s) sur ${names.length} lu(s).`); openCandidates(ep); render();
+      });
     }
   });
 
@@ -882,9 +1299,18 @@
     const el = ev.target;
     if (el.dataset.field === "comment" && tab === "eval") {
       const e = evalOf(active(), currentId);
-      e.comment = el.value; save();
+      if (e.done) return;
+      e.comment = el.value;
+      e.updatedAt = Date.now();
+      save();
     }
   });
+
+  // Mémorise les critères ouverts ou repliés à la main dans l'écran d'harmonisation.
+  document.addEventListener("toggle", ev => {
+    const d = ev.target;
+    if (d.matches?.("details[data-crit]") && crossId) openCrits[crossId + ":" + d.dataset.crit] = d.open;
+  }, true);
 
   $("ceNewEpreuve").addEventListener("click", () => {
     if (!db.me) { toast("Indique d'abord ton nom."); return; }
@@ -897,6 +1323,9 @@
     if (v && v.trim()) { db.me = v.trim(); save(); render(); }
   });
 
-  window.CoEval = {GRID, scores, importText, exportPayload, qrParts, parseCSV};
+  // Demande au navigateur de ne pas effacer les données de lui-même (Safari notamment).
+  navigator.storage?.persist?.().catch(() => {});
+
+  window.CoEval = {core:C, get db() { return db; }, importText};
   render();
 })();
