@@ -413,50 +413,21 @@ button.ce-adopt.mean{--c:var(--ce-d3)}
 .ce-sheet-print .ce-timeline li{font-size:11px;padding:2px 0 2px 8px}
 .ce-sheet-print .ce-table{overflow:visible}
 
-/* Évaluer, grille compacte : une ligne par critère, une colonne par degré,
    les points dans la case ; l'AFL1 tient sur un écran de téléphone. */
-.ce-group.compact{padding:10px 12px}
-.ce-dgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
-.ce-dhead{align-items:end;margin-bottom:2px}
-.ce-dhead h3{display:none}
-.ce-dhead span{font-size:11px;font-weight:700;text-align:center;border-bottom:3px solid var(--c);padding-bottom:2px;color:var(--ce-muted)}
-.ce-dhead .d1,.ce-dcell.d1{--c:var(--ce-d1)}.ce-dhead .d2,.ce-dcell.d2{--c:var(--ce-d2)}
-.ce-dhead .d3,.ce-dcell.d3{--c:var(--ce-d3)}.ce-dhead .d4,.ce-dcell.d4{--c:var(--ce-d4)}
-.ce-group.compact>.ce-dhead+.ce-crit{border-top:0}
-.ce-crow{padding:6px 0}
-.ce-crow .ce-crit-head{margin-bottom:3px;font-size:14px}
-.ce-crow .ce-crit-head strong{font-size:15px}
-.ce-dcell{display:grid;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));gap:3px;padding:3px;border-radius:8px;background:color-mix(in srgb,var(--c) 7%,#fff)}
-.ce-dcell.on{background:color-mix(in srgb,var(--c) 18%,#fff);box-shadow:inset 0 0 0 1px var(--c)}
-.ce-dcell .ce-pt{min-height:36px;min-width:0;padding:2px;font-size:13px;border-radius:8px}
-.ce-dcell .ce-pt.on{background:var(--c);border-color:var(--c);color:#fff}
 .ce-choice-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .ce-choice-line>span{flex:1}
 .ce-choice-line .ce-link{min-height:32px}
 .ce-cand-head .ce-nav{margin-bottom:4px}
 .ce-cand-head .ce-nav button{min-height:40px}
-@media (max-width:699px){
-  .ce-group.compact .ce-group-title{display:none}
-}
 
-/* Grille compacte : points à la largeur de leur texte, trois par case */
-.ce-dcell{display:flex;flex-wrap:wrap;gap:3px;padding:2px}
-.ce-dcell .ce-pt{flex:1 1 auto;min-width:22px;padding:2px 3px;min-height:36px}
 .ce-cand-head .ce-choice{margin-top:4px;flex-wrap:nowrap}
 .ce-cand-head .ce-choice>span{width:auto;min-width:64px;font-size:12px}
 .ce-cand-head .ce-choice button{flex:1;min-height:36px;padding:4px 6px;font-size:13px}
 @media (max-width:699px){
   main{padding-left:10px;padding-right:10px}
-  .ce-group.compact{padding:8px}
   .ce-cand-head{padding:10px}
-  .ce-crow{padding:4px 0}
-  .ce-crow .ce-crit-head{font-size:13px;margin-bottom:2px}
-  .ce-dgrid{gap:3px}
 }
 
-.ce-dcell{gap:2px;padding:2px}
-.ce-dcell .ce-pt{min-width:20px;padding:2px;font-size:12px;font-weight:600;letter-spacing:-.2px;border-radius:7px}
-@media (min-width:700px){ .ce-dcell .ce-pt{font-size:14px;padding:2px 6px} }
 .ce-choice-line{font-size:14px}
 
 .ce-recap td:last-child{min-width:0}
@@ -471,9 +442,6 @@ button.ce-adopt.mean{--c:var(--ce-d3)}
    zones tactiles confortables. */
 @media (min-width:700px){
   .ce-eval{grid-template-columns:230px 1fr}
-  .ce-dcell .ce-pt{min-height:44px;font-size:15px;padding:2px 6px}
-  .ce-crow{padding:6px 0}
-  .ce-crow .ce-crit-head{font-size:15px}
   .ce-cand{min-height:44px}
   .ce-cand-head .ce-choice button{min-height:44px}
   .ce-hcard>summary{min-height:56px}

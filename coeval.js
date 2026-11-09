@@ -262,14 +262,10 @@
 
     let groups = "", lastGroup = "";
     GRID.forEach(crit => {
-      const key = ui.desc ? crit.group : crit.afl;
-      if (key !== lastGroup) {
+      if (crit.group !== lastGroup) {
         if (lastGroup) groups += "</div>";
-        lastGroup = key;
-        const title = ui.desc ? (crit.afl === "AFL1" ? `AFL1 · ${crit.group}` : crit.group) : crit.afl === "AFL1" ? "AFL1" : crit.group;
-        const names = crit.names || ["D1", "D2", "D3", "D4"];
-        groups += `<div class="ce-group${ui.desc ? "" : " compact"}"${crit.afl === "AFL1" ? ` id="ceAfl1"` : ""}>
-          ${ui.desc ? `<h3>${esc(title)}</h3>` : `<div class="ce-dgrid ce-dhead"><h3>${esc(title)}</h3>${names.map((n, i) => `<span class="d${i + 1}">${esc(n)}</span>`).join("")}</div>`}`;
+        lastGroup = crit.group;
+        groups += `<div class="ce-group"><h3>${esc(crit.afl === "AFL1" ? `AFL1 · ${crit.group}` : crit.group)}</h3>`;
       }
       groups += pre?.crits.includes(crit.id) ? preCritHTML(crit, ev) : critHTML(crit, ev, locked);
     });
@@ -331,16 +327,6 @@
     }
     const dis = locked ? " disabled" : "";
     // Chaque degré contient ses points : un seul toucher fixe le degré et la note.
-    if (!ui.desc) {
-      const cells = crit.deg.map((range, i) => {
-        const d = i + 1, on = deg === d;
-        const name = crit.names ? crit.names[i] : "Degré " + d;
-        return `<div class="ce-dcell d${d}${on ? " on" : ""}" title="${esc(name)} : ${esc(desc[i])}">${C.stepsOf(range).map(x => `<button type="button" class="ce-pt${on && value === x ? " on" : ""}" data-act="val" data-crit="${crit.id}" data-deg="${d}" data-value="${x}" aria-pressed="${on && value === x}" aria-label="${esc(crit.label)}, ${esc(name)} : ${fmt(x)} point(s)"${dis}>${fmt(x)}</button>`).join("")}</div>`;
-      }).join("");
-      return `<div class="ce-crit ce-crow${value != null ? " filled" : ""}">
-        <div class="ce-crit-head"><b>${esc(crit.label)}</b><span>${value != null ? `<strong>${fmt(value)}</strong>` : "—"} /${crit.max}</span></div>
-        ${recheck}<div class="ce-dgrid">${cells}</div></div>`;
-    }
     const degs = `<div class="ce-degs ce-degpts">${crit.deg.map((range, i) => {
       const d = i + 1, on = deg === d;
       const name = crit.names ? crit.names[i] : (ui.desc ? "Degré " : "D") + d;
@@ -352,6 +338,7 @@
       <div class="ce-crit-head"><b>${esc(crit.label)}</b><span>${value != null ? `<strong>${fmt(value)}</strong>` : "—"} /${crit.max}</span></div>
       ${recheck}
       ${degs}
+      ${deg && !ui.desc ? `<p class="ce-desc">${esc(desc[deg - 1])}</p>` : ""}
     </div>`;
   }
 
