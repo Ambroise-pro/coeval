@@ -466,3 +466,45 @@ button.ce-adopt.mean{--c:var(--ce-d3)}
   .ce-harmo-side .ce-hsum .ce-nav{flex-wrap:wrap}
   .ce-harmo-side .ce-hsum .ce-nav h2{flex-basis:100%;order:-1;text-align:left}
 }
+
+/* Évaluer au curseur : un cran par point, degré après degré, fond coloré par degré. */
+.ce-slide{position:relative;padding:6px 18px 18px;--c:#94a3b8}
+.ce-slide.d1{--c:var(--ce-d1)}.ce-slide.d2{--c:var(--ce-d2)}.ce-slide.d3{--c:var(--ce-d3)}.ce-slide.d4{--c:var(--ce-d4)}
+.ce-slide-track{position:relative;height:8px;border-radius:4px;margin:13px 0;opacity:.85}
+.ce-slide.unset .ce-slide-track{opacity:.45}
+.ce-tick{position:absolute;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#fff}
+.ce-slider{position:absolute;left:0;right:0;top:0;width:100%;height:46px;margin:0;background:transparent;-webkit-appearance:none;appearance:none;border:0;padding:0;cursor:pointer;touch-action:pan-y}
+.ce-slider:focus{outline:none}
+.ce-slider::-webkit-slider-runnable-track{height:46px;background:transparent}
+.ce-slider::-moz-range-track{height:46px;background:transparent}
+.ce-slider::-webkit-slider-thumb{-webkit-appearance:none;width:36px;height:36px;margin-top:5px;border-radius:50%;background:#fff;border:4px solid var(--c);box-shadow:0 2px 8px rgba(15,23,42,.3)}
+.ce-slider::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#fff;border:4px solid var(--c);box-shadow:0 2px 8px rgba(15,23,42,.3)}
+.ce-slide.unset .ce-slider::-webkit-slider-thumb{opacity:.45;border-style:dashed}
+.ce-slide.unset .ce-slider::-moz-range-thumb{opacity:.45}
+.ce-slider:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px var(--ce-primary-soft),0 2px 8px rgba(15,23,42,.3)}
+.ce-slider:disabled{cursor:default}
+.ce-slider:disabled::-webkit-slider-thumb{box-shadow:none}
+.ce-slide-labels{position:relative;height:14px}
+.ce-slide-labels span{position:absolute;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--ce-muted);white-space:nowrap}
+.ce-slide-crit .ce-slide-val{font-size:16px}
+.ce-slide-crit .ce-slide-desc{margin-top:2px}
+.ce-slide.unset+.ce-slide-desc{color:var(--ce-muted);font-style:italic;background:none;padding-left:0}
+
+/* Curseur resserré : la piste au centre de la zone tactile, descripteur sur une ligne. */
+.ce-slide{padding:0 18px;height:46px}
+.ce-slide-track{margin:0;top:19px}
+.ce-slide-crit{padding:6px 0}
+.ce-slide-crit .ce-crit-head{margin-bottom:0}
+.ce-slide-desc{margin:0;font-size:12px;color:var(--ce-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ce-slide.unset+.ce-slide-desc{font-style:italic}
+/* Curseurs : cartes plus serrées ; sur tablette en paysage, deux colonnes de curseurs. */
+.ce-group:has(.ce-slide-crit){padding:8px 12px;margin-bottom:8px}
+.ce-group:has(.ce-slide-crit) h3{margin:2px 0 0}
+.ce-slide-crit{padding:4px 0}
+@media (min-width:1000px){
+  .ce-group:has(.ce-slide-crit){display:grid;grid-template-columns:1fr 1fr;column-gap:28px}
+  .ce-group:has(.ce-slide-crit)>h3{grid-column:1/-1}
+  .ce-group:has(.ce-slide-crit) .ce-crit:first-of-type{border-top:0}
+}
+/* Le descripteur sur une ligne ne doit jamais élargir la fiche : les colonnes peuvent rétrécir. */
+.ce-sheet,.ce-eval>*,.ce-group,.ce-slide-crit,.ce-harmo>*{min-width:0}

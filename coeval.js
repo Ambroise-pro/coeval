@@ -252,6 +252,7 @@
       ${locked ? `<button type="button" class="ce-link" data-act="reopen">Modifier</button>`
         : pre ? `<button type="button" class="ce-link" data-act="unlock-pre" title="AFL2/AFL3 faits par ${esc(pre.by)} : modifier">Modifier</button>`
         : canEdit ? `<button type="button" class="ce-link" data-act="edit-choices">Modifier</button>` : ""}
+      <button type="button" class="ce-link ce-desc-toggle" data-act="toggle-input" title="${useSlider() ? "Noter avec des cases" : "Noter avec des curseurs"}">${useSlider() ? "▦ Cases" : "🎚️ Curseurs"}</button>
       <button type="button" class="ce-link ce-desc-toggle" data-act="toggle-desc" aria-pressed="${!!ui.desc}" title="${ui.desc ? "Masquer" : "Voir"} les descripteurs">📖</button></p>`;
     const choice = (field, options, label) => {
       const fixed = pre?.choices.includes(field);
@@ -310,6 +311,76 @@
     </div>`;
   }
 
+  /* Curseur par critère : ses crans sont les points de chaque degré, degré après degré.
+     Une valeur commune à deux degrés (ex. 0,25 en D1 et en D2) donne deux crans distincts.
+     La note est enregistrée au relâchement ; pendant le glissement, seul l'affichage change. */
+  const useSlider = () => ui.input !== "cases" && !ui.desc;
+
+  function sliderSteps(crit) {
+    const steps = [];
+    crit.deg.forEach((range, i) => C.stepsOf(range).forEach(v => steps.push({d:i + 1, v})));
+    return steps;
+  }
+
+  const stepText = (crit, st) => `${crit.names ? crit.names[st.d - 1] : "D" + st.d} · ${fmt(st.v)}`;
+
+  function sliderHTML(crit, ev, value, deg, desc, recheck, locked) {
+    const steps = sliderSteps(crit);
+    const n = steps.length;
+    const idx = value != null ? steps.findIndex(st => st.d === deg && st.v === value) : -1;
+    const pos = k => n > 1 ? k / (n - 1) * 100 : 50;
+    const colors = ["var(--ce-d1)", "var(--ce-d2)", "var(--ce-d3)", "var(--ce-d4)"];
+    const segs = [1, 2, 3, 4].map(d => {
+      const ks = steps.map((st, k) => st.d === d ? k : -1).filter(k => k >= 0);
+      return {d, from:Math.max(0, pos(ks[0] - .5)), to:Math.min(100, pos(ks[ks.length - 1] + .5))};
+    });
+    const gradient = `linear-gradient(90deg,${segs.map(sg => `${colors[sg.d - 1]} ${sg.from}%,${colors[sg.d - 1]} ${sg.to}%`).join(",")})`;
+    const cur = idx >= 0 ? steps[idx] : null;
+    return `<div class="ce-crit ce-slide-crit${value != null ? " filled" : ""}" data-crit="${crit.id}">
+      <div class="ce-crit-head"><b>${esc(crit.label)}</b><span><strong class="ce-slide-val">${cur ? esc(stepText(crit, cur)) : "à noter"}</strong> /${crit.max}</span></div>
+      ${recheck}
+      <div class="ce-slide${cur ? ` d${cur.d}` : " unset"}">
+        <div class="ce-slide-track" style="background:${gradient}">${steps.map((st, k) => `<span class="ce-tick" style="left:${pos(k)}%"></span>`).join("")}</div>
+        <input type="range" class="ce-slider" min="0" max="${n - 1}" step="1" value="${idx >= 0 ? idx : 0}" data-crit="${crit.id}"
+          data-steps="${steps.map(st => st.d + ":" + st.v).join(",")}" aria-label="${esc(crit.label)}" aria-valuetext="${cur ? esc(stepText(crit, cur)) + " point(s)" : "non noté"}"${locked ? " disabled" : ""}>
+      </div>
+      <p class="ce-slide-desc"${cur ? ` title="${esc(desc[cur.d - 1])}"` : ""}>${cur ? esc(desc[cur.d - 1]) : "Fais glisser le curseur."}</p>
+    </div>`;
+  }
+
+  const sliderStep = input => {
+    const [d, v] = input.dataset.steps.split(",")[Number(input.value)].split(":");
+    return {d:Number(d), v:Number(v)};
+  };
+
+  /* Pendant le glissement : met à jour l'affichage sans enregistrer. */
+  function sliderPreview(input) {
+    const box = input.closest(".ce-slide-crit");
+    const crit = C.critById(input.dataset.crit);
+    const st = sliderStep(input);
+    const ev = evalOf(active(), currentId);
+    const desc = C.descOf(crit, ev.role);
+    box.querySelector(".ce-slide-val").textContent = stepText(crit, st);
+    const line = box.querySelector(".ce-slide-desc");
+    line.textContent = desc ? desc[st.d - 1] : "";
+    line.title = line.textContent;
+    const slide = box.querySelector(".ce-slide");
+    slide.className = `ce-slide d${st.d}`;
+    input.setAttribute("aria-valuetext", stepText(crit, st) + " point(s)");
+  }
+
+  /* Au relâchement (ou au clavier) : enregistre degré et note. */
+  function sliderCommit(input) {
+    const ep = active();
+    const ev = evalOf(ep, currentId);
+    const st = sliderStep(input);
+    if (ev.v[input.dataset.crit] === st.v && ev.d[input.dataset.crit] === st.d) return;
+    setValue(ep, input.dataset.crit, st.d, st.v);
+    const y = window.scrollY;
+    render();
+    window.scrollTo({top:y});
+  }
+
   /* Place la fiche de l'élève en haut de l'écran : l'AFL1 se note sans défiler. */
   function scrollToSheet() {
     const head = document.querySelector(".ce-cand-head");
@@ -326,6 +397,7 @@
         <p class="ce-hint">Choisis d'abord le rôle AFL3 (partenaire ou juge) en haut de la fiche.</p></div>`;
     }
     const dis = locked ? " disabled" : "";
+    if (useSlider()) return sliderHTML(crit, ev, value, deg, desc, recheck, locked);
     // Chaque degré contient ses points : un seul toucher fixe le degré et la note.
     const degs = `<div class="ce-degs ce-degpts">${crit.deg.map((range, i) => {
       const d = i + 1, on = deg === d;
@@ -1417,6 +1489,7 @@
       case "prep-step": prepIndex += Number(el.dataset.step); render(); break;
       case "share-mode": shareMode = el.dataset.mode; render(); break;
       case "toggle-desc": ui.desc = !ui.desc; saveUi(); render(); break;
+      case "toggle-input": ui.input = useSlider() ? "cases" : "slider"; ui.desc = false; saveUi(); render(); break;
       case "prep-download": downloadJSON(`preparation_${slug(ep.title)}_${slug(db.me)}.json`, C.exportPrepFile(ep, db.me), ep.title); break;
       case "prep-copy": {
         const text = C.prepParts(ep, db.me).join("\n");
@@ -1587,6 +1660,7 @@
 
   document.addEventListener("change", ev => {
     const el = ev.target;
+    if (el.classList?.contains("ce-slider")) { sliderCommit(el); return; }
     const ep = active();
     if (el.id === "ceEpreuve") { db.activeId = el.value; currentId = crossId = null; crossView = "table"; shareMode = null; save(); render(); return; }
     if (el.id === "ceSort") { crossSort = el.value; render(); return; }
@@ -1611,6 +1685,7 @@
 
   document.addEventListener("input", ev => {
     const el = ev.target;
+    if (el.classList?.contains("ce-slider")) { sliderPreview(el); return; }
     if (el.dataset.field === "comment" && tab === "eval") {
       const e = evalOf(active(), currentId);
       if (e.done) return;
@@ -1619,6 +1694,14 @@
       save();
     }
   });
+
+  // Curseur pas encore noté : un toucher sur la position déjà affichée doit aussi enregistrer.
+  const commitUnset = ev => {
+    const el = ev.target;
+    if (el.classList?.contains("ce-slider") && el.closest(".ce-slide")?.classList.contains("unset")) { sliderPreview(el); sliderCommit(el); }
+  };
+  document.addEventListener("pointerup", commitUnset);
+  document.addEventListener("keyup", ev => { if (ev.key === "Enter" || ev.key === " ") commitUnset(ev); });
 
   // Mémorise les critères ouverts ou repliés à la main dans l'écran d'harmonisation.
   document.addEventListener("toggle", ev => {
