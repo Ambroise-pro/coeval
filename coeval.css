@@ -530,3 +530,13 @@ button.ce-adopt.mean{--c:var(--ce-d3)}
 @media (max-width:699px){
   .ce-slide-pts span{font-size:10px;padding:0 1px;letter-spacing:-.3px}
 }
+
+/* Deux parcours : choix du rôle au démarrage */
+.ce-roles{display:grid;gap:10px;margin:10px 0}
+.ce-role{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:16px;border-radius:16px;border:2px solid var(--ce-border);font-weight:500}
+.ce-role b{font-size:17px}
+.ce-role span{color:var(--ce-muted);font-size:14px}
+.ce-role:hover{border-color:var(--ce-primary);background:var(--ce-primary-soft)}
+@media (min-width:700px){ .ce-roles{grid-template-columns:1fr 1fr} }
+.ce-list>.ce-wide{margin:0 0 8px}
+.ce-list>.ce-wide small{font-weight:500;opacity:.85}

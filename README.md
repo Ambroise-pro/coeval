@@ -3,29 +3,24 @@
 Application web (hors connexion) pour co-évaluer l'épreuve de musculation du bac
 à plusieurs évaluateurs, selon la grille FCE Musculation CA5.
 
-0. **Préparer** (avant l'épreuve) — le professeur note la répartition AFL2/AFL3, le thème, le rôle
-   et les critères AFL2/AFL3, puis transmet au co-évaluateur (onglet Échanger, « Préparer le co-évaluateur » :
-   QR, fichier ou code) la liste des candidats et ces données, **jamais ses notes AFL1**.
-   Sur un téléphone vierge, le co-évaluateur choisit « Je suis co-évaluateur : recevoir la préparation » :
-   l'épreuve est créée, ses fiches sont pré-remplies et verrouillées (« Modifier ces données » reste possible),
-   il ne lui reste qu'à évaluer l'AFL1.
-1. **Évaluer** — chaque évaluateur note sur son appareil, sans voir l'autre :
-   thème, répartition AFL2/AFL3 (4-4, 6-2, 2-6), rôle AFL3, puis degré et note de chaque critère.
-   « Terminer mon évaluation » vérifie la fiche, affiche un récapitulatif, la verrouille et garde
-   une copie de l'évaluation initiale. Une fiche rouverte est tracée dans l'historique.
-2. **Échanger** — QR codes (8 candidats par QR, dans n'importe quel ordre, lots manquants signalés),
-   QR d'un seul candidat, fichier JSON (avec les remarques) ou code à coller.
-   Une fiche plus ancienne n'écrase jamais une fiche plus récente.
-3. **Croiser** — tableau de bord (compteurs, filtres, tri par priorité, « Candidats à harmoniser »),
-   puis harmonisation critère par critère :
-   - ✓ accord · ≈ écart de points (même degré, ≥ 0,5 pt) · ≠ désaccord de degré · ‼ désaccord majeur (≥ 2 degrés) · … incomplet ;
-   - en cas de désaccord de degré, aucune note automatique : le jury choisit **d'abord le degré**
-     (descripteurs de chacun côte à côte), **puis la note** dans la plage de ce degré ;
-     la moyenne n'est proposée que si elle appartient au degré retenu ;
-   - thème, répartition et rôle différents : à trancher avant validation ;
-   - validation explicite (note figée), modifiable avec confirmation ; tout est historisé.
-   Bilan du jury (concordance, export anonymisé), exports CSV (synthèse, détail par critère,
-   historique), fiches imprimables par candidat.
+Au démarrage, chacun choisit son rôle ; les deux parcours sont distincts.
+
+**Professeur de la classe** — onglets *Préparer · Évaluer · Croiser*
+1. **Préparer** (avant l'épreuve) : liste de la classe (CSV Pronote), puis pour chaque élève thème, répartition
+   AFL2/AFL3, rôle et critères AFL2/AFL3. « Transmettre au co-évaluateur » affiche les QR (ou fichier, code) :
+   la classe et ces données, **jamais l'AFL1**.
+2. **Évaluer** (jour de l'épreuve) : l'AFL1 seulement (curseur par critère, cases de degré avec les critères au-dessus).
+   « Terminer » vérifie la fiche, la verrouille et garde la version initiale.
+3. **Croiser** : recevoir l'évaluation du co-évaluateur (QR, fichier, code), puis tableau de bord, validation groupée
+   des accords, harmonisation enchaînée (degré puis note, ou « Retenir » la note d'un évaluateur en un toucher),
+   récapitulatif élève par élève, procès-verbal, exports, sauvegarde.
+
+**Co-évaluateur** — onglets *Recevoir · Évaluer · Envoyer*
+1. **Recevoir** la préparation du professeur : l'épreuve et les fiches (répartition, AFL2/AFL3) sont créées.
+2. **Évaluer** l'AFL1 (l'AFL2/AFL3 du professeur n'apparaît pas).
+3. **Envoyer** son évaluation au professeur (QR, fichier avec remarques, code), et sauvegarder.
+
+Le rôle se change dans « Candidats ». Une fiche plus ancienne n'écrase jamais une fiche plus récente.
 
 La liste des élèves s'importe en CSV (export Pronote accepté tel quel : nom en colonne A,
 classe si une colonne « Classe » existe).
