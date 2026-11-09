@@ -466,8 +466,9 @@
     const st = sliderStep(input);
     if (ev.v[input.dataset.crit] === st.v && ev.d[input.dataset.crit] === st.d) return;
     setValue(ep, input.dataset.crit, st.d, st.v);
-    const y = window.scrollY;
+    const y = window.scrollY, focused = document.activeElement === input;
     render();
+    if (focused) [...document.querySelectorAll(".ce-slider")].find(el => el.dataset.crit === input.dataset.crit)?.focus({preventScroll:true});
     window.scrollTo({top:y});
   }
 
@@ -1528,7 +1529,7 @@
   async function checkOffline() {
     try {
       const registration=await navigator.serviceWorker?.getRegistration();
-      const cache=await caches.open('coeval-14');
+      const cache=await caches.open('coeval-15');
       const files=['./','index.html','coeval.css','coeval-core.js','coeval-demo.js','coeval-workflow.js','coeval.js','qrcode.js','jsQR.js','manifest.webmanifest'];
       offlineReady=!!registration?.active && (await Promise.all(files.map(f=>cache.match(f)))).every(Boolean);
     } catch(e) { offlineReady=false; }
@@ -1968,8 +1969,44 @@
     }
   });
 
-  // Fin d'un toucher sur un curseur : on enregistre le cran visé, même s'il n'a pas bougé
-  // (premier toucher sur la position de départ d'un critère pas encore noté).
+  // Positionner dès l'appui, sans dépendre du comportement natif de la piste.
+  // La capture conserve le glissement même lorsque le doigt quitte le curseur.
+  let sliderPointer = null;
+  function sliderAtPointer(input, clientX) {
+    const track = input.closest(".ce-slide").querySelector(".ce-slide-track").getBoundingClientRect();
+    if (!track.width) return;
+    input.value = Math.max(0, Math.min(1000, (clientX - track.left) / track.width * 1000));
+    sliderPreview(input);
+  }
+  document.addEventListener("pointerdown", ev => {
+    const input = ev.target;
+    if (!input.classList?.contains("ce-slider") || input.disabled || !ev.isPrimary || ev.button !== 0 || sliderPointer) return;
+    ev.preventDefault();
+    input.focus({preventScroll:true});
+    sliderPointer = {input, id:ev.pointerId};
+    input.setPointerCapture(ev.pointerId);
+    sliderAtPointer(input, ev.clientX);
+  });
+  document.addEventListener("pointermove", ev => {
+    if (sliderPointer?.id !== ev.pointerId) return;
+    sliderAtPointer(sliderPointer.input, ev.clientX);
+  });
+  document.addEventListener("pointerup", ev => {
+    if (sliderPointer?.id !== ev.pointerId) return;
+    const {input} = sliderPointer;
+    sliderPointer = null;
+    sliderAtPointer(input, ev.clientX);
+    if (input.hasPointerCapture(ev.pointerId)) input.releasePointerCapture(ev.pointerId);
+    if (input.isConnected && !input.disabled) sliderCommit(input);
+  });
+  const cancelSliderPointer = ev => {
+    if (sliderPointer?.id !== ev.pointerId) return;
+    sliderPointer = null;
+    // Un défilement vertical ou un geste interrompu ne doit pas saisir une note.
+    render();
+  };
+  document.addEventListener("pointercancel", cancelSliderPointer);
+  document.addEventListener("lostpointercapture", cancelSliderPointer);
   const commitRelease = ev => {
     const el = ev.target;
     if (el.classList?.contains("ce-slider") && !el.disabled) { sliderPreview(el); sliderCommit(el); }
@@ -1979,7 +2016,6 @@
     if (!el.classList?.contains("ce-slider") || el.disabled) return;
     if (sliderKey(el, ev.key)) { ev.preventDefault(); sliderPreview(el, true); sliderCommit(el); }
   });
-  document.addEventListener("pointerup", commitRelease);
   document.addEventListener("keyup", ev => { if (ev.key === "Enter" || ev.key === " ") commitRelease(ev); });
 
   // Mémorise les critères ouverts ou repliés à la main dans l'écran d'harmonisation.

@@ -79,7 +79,9 @@ Un nom corrigé garde ses anciens noms pour reconnaître les échanges ultérieu
 
 Le **mode Passage** garde l’identité de l’élève visible. Les descriptions de chaque
 degré restent toujours affichées avec le curseur de notation en dessous, y compris
-en mode Passage. Il n’y a plus de mode de saisie par cases de points.
+en mode Passage. Un clic ou un toucher sur la piste positionne immédiatement le
+curseur au cran le plus proche ; la note est enregistrée au relâchement. Un geste
+annulé ne modifie pas la note. Il n’y a plus de mode de saisie par cases de points.
 **Annuler la dernière saisie** restaure la dernière note ou le dernier choix de
 la fiche tant qu’aucune autre modification de cette fiche n’est intervenue.
 
@@ -131,13 +133,14 @@ node --test tests/*.test.js
 python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
-Les deux scénarios navigateur utilisent Playwright et Chromium, installés
+Les scénarios navigateur utilisent Playwright et Chromium, installés
 séparément des dépendances de l’application. Depuis un autre terminal :
 
 ```sh
 npm install --prefix /tmp/coeval-browser --cache /tmp/coeval-npm-cache playwright@1.65.0
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-smoke.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-exchange.cjs
+NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-slider.cjs
 ```
 
 Chromium est recherché dans `/usr/bin/chromium` ; définir `CHROMIUM_PATH` si besoin.
