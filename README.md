@@ -60,3 +60,87 @@ de sécurité est gardée sous la clé `df-coeval-v1-avant-v2`.
 Site statique : aucun build, à publier tel quel (Vercel, GitHub Pages…). La caméra exige HTTPS
 (fourni d'office par Vercel). Sur Vercel : projet de type « Other », sans commande de build, répertoire racine du dépôt ;
 `.vercelignore` exclut les tests de la publication.
+
+## Organisation et confort de saisie
+
+L’onglet **Vue d’ensemble** présente les préparations, les évaluations terminées,
+les fiches reçues et les élèves encore attendus. Il propose la prochaine action.
+La recherche par nom ou classe et le filtre de groupe sont accessibles dans la
+liste des élèves. Dans **Candidats → Modifier**, on peut corriger un nom, renseigner
+la classe, le groupe, l’ordre de passage et la situation administrative.
+
+Les situations **Absent**, **Dispensé** et **Passage reporté** sont des annotations
+locales : elles ne créent pas de zéro, ne suppriment pas les notes et excluent
+l’élève du suivi des passages attendus et des validations groupées. Revenir à
+**À évaluer** permet de reprendre la saisie. Groupe, situation et retour écrit
+sont inclus dans les sauvegardes complètes, mais pas dans les échanges QR de notes.
+Pour les homonymes, utiliser des suffixes identiques sur les deux appareils.
+Un nom corrigé garde ses anciens noms pour reconnaître les échanges ultérieurs.
+
+Le **mode Passage** compacte les six critères AFL1 et garde l’identité de l’élève
+visible. Les descripteurs restent accessibles via **Consulter les critères**.
+**Annuler la dernière saisie** restaure la dernière note ou le dernier choix de
+la fiche tant qu’aucune autre modification de cette fiche n’est intervenue.
+
+## Enregistrement, sauvegarde et récupération
+
+- **Enregistré sur cet appareil** décrit l’enregistrement local automatique.
+  Un échec produit une alerte persistante invitant à exporter immédiatement.
+- Une **copie de secours** est un fichier séparé. Un partage annulé n’est jamais
+  annoncé comme réussi. Pour un téléchargement, vérifier le fichier puis cliquer
+  sur **J’ai vérifié le fichier** ; l’application ne peut pas vérifier elle-même
+  sa conservation. **Télécharger directement** évite le partage natif si nécessaire.
+- Une suppression place l’élève et ses notes, ou l’épreuve entière, dans la
+  **corbeille**. La restauration refuse d’écraser un homonyme ou des notes reçues
+  depuis la suppression. La corbeille des élèves fait partie de la sauvegarde de
+  l’épreuve ; celle des épreuves reste locale à cet appareil.
+- **Archiver** retire une épreuve de la liste active. **Archives et corbeille**
+  permet de la rouvrir. Remplacer une épreuve par une sauvegarde conserve l’état
+  précédent dans la corbeille.
+
+## Réception et retour aux élèves
+
+Les listes CSV et les échanges de notes (QR, fichier ou code) présentent un
+**aperçu avant confirmation**. Annuler ne modifie aucune donnée. La réception
+recalcule les changements au moment de confirmer. Pour un lot de QR, confirmer
+chaque partie puis choisir **Scanner le QR suivant**.
+
+Après réception, le professeur peut produire un **accusé de réception** : le
+co-évaluateur scanne son QR ou colle son code dans **Envoyer**. Ce reçu vérifie
+l’épreuve, le destinataire et le contenu des notes reçues. Il ne garantit pas
+l’identité de l’auteur et ne confirme pas la réception des remarques : celles-ci
+voyagent uniquement par fichier. Modifier les notes rend le reçu précédent obsolète.
+
+Dans **Croiser → Bilan, exports, impression**, rédiger les retours aux élèves puis
+imprimer les fiches de retour. Elles contiennent les notes validées et les commentaires
+expressément destinés à l’élève, sans l’historique ni les remarques privées du jury.
+L’impression du navigateur permet également d’enregistrer un PDF.
+
+**Avant l’épreuve** vérifie la présence des fichiers hors connexion et permet de
+tester la caméra (arrêtée à la fermeture du dialogue). Un essai réel en mode avion
+et sur les appareils utilisés reste recommandé avant l’épreuve.
+
+## Développement et tests
+
+`coeval-workflow.js` contient les fonctions testables d’organisation, d’aperçu,
+de corbeille et d’accusé de réception. Aucun service ni build n’est nécessaire.
+
+```sh
+node --test tests/*.test.js
+python3 -m http.server 8000 --bind 127.0.0.1
+```
+
+Les deux scénarios navigateur utilisent Playwright et Chromium, installés
+séparément des dépendances de l’application. Depuis un autre terminal :
+
+```sh
+npm install --prefix /tmp/coeval-browser --cache /tmp/coeval-npm-cache playwright@1.65.0
+NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-smoke.cjs
+NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-exchange.cjs
+```
+
+Chromium est recherché dans `/usr/bin/chromium` ; définir `CHROMIUM_PATH` si besoin.
+Les profils de test sont isolés. Les scénarios vérifient notamment le rechargement
+hors connexion, les échanges entre deux profils, les sauvegardes annulées, les
+échecs de stockage, la corbeille et les fiches imprimées. La caméra du scénario
+est simulée ; cela ne remplace pas un essai physique.

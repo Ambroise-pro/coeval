@@ -343,13 +343,13 @@
   /* Candidats en accord complet, pas encore validés et sans obstacle : validables d'un coup. */
   function accordReady(ep, me) {
     return ep.candidates.map(cand => ({cand, r:retainedFor(ep, cand, me)}))
-      .filter(x => !x.r.validated && x.r.h.status === "accord" && !x.r.h.blockers.length);
+      .filter(x => (!x.cand.situation || x.cand.situation === "present") && !x.r.validated && x.r.h.status === "accord" && !x.r.h.blockers.length);
   }
 
   /* File d'harmonisation : candidats à traiter, du plus urgent au plus simple. */
   function harmonizeQueue(ep, me) {
     return ep.candidates.map(cand => ({cand, r:retainedFor(ep, cand, me)}))
-      .filter(x => needsAction(x.r))
+      .filter(x => (!x.cand.situation || x.cand.situation === "present") && needsAction(x.r))
       .sort((a, b) => STATUS[a.r.h.status].rank - STATUS[b.r.h.status].rank || a.cand.name.localeCompare(b.cand.name, "fr"))
       .map(x => x.cand.id);
   }
@@ -364,7 +364,7 @@
       const name = String(raw || "").replace(/\s+/g, " ").trim();
       const classroom = String(classes?.[i] || "").trim();
       if (!name) return;
-      const existing = ep.candidates.find(c => normName(c.name) === normName(name));
+      const existing = ep.candidates.find(c => [c.name, ...(c.aliases || [])].some(n => normName(n) === normName(name)));
       if (existing) { if (!existing.classroom && classroom) existing.classroom = classroom; return; }
       ep.candidates.push({id:uid(), name, classroom});
       added++;
@@ -507,7 +507,7 @@
     const added = addCandidates(ep, p.rows.map(r => r[0]), p.rows.map(r => typeof r[7] === "string" ? r[7] : ""));
     let filled = 0, kept = 0, locked = 0, older = 0;
     p.rows.forEach(([name, split, theme, role, cells, t]) => {
-      const cand = ep.candidates.find(c => normName(c.name) === normName(name));
+      const cand = ep.candidates.find(c => [c.name, ...(c.aliases || [])].some(n => normName(n) === normName(name)));
       if (!cand) return;
       const inc = {split:own(SPLITS, split) ? split : "", theme:own(THEMES, theme) ? theme : "", role:own(ROLES, role) ? role : "", v:{}, d:{}};
       if (Array.isArray(cells)) GRID.forEach((cr, i) => {
@@ -576,7 +576,8 @@
     else other = ep.others[by] = {at:p.at || 0, batch:p.batch || "", rows:{...(prev?.rows || {})}, parts:null};
     let updated = 0, older = 0;
     p.rows.forEach(([name, split, theme, role, cells, t, done]) => {
-      const key = normName(name);
+      const cand = ep.candidates.find(c => [c.name, ...(c.aliases || [])].some(n => normName(n) === normName(name)));
+      const key = normName(cand?.name || name);
       if (!key) return;
       const ev = {
         split:own(SPLITS, split) ? split : "", theme:own(THEMES, theme) ? theme : "", role:own(ROLES, role) ? role : "",
@@ -678,7 +679,13 @@
 
   function migrateEpreuve(ep, me) {
     ep.candidates = Array.isArray(ep.candidates) ? ep.candidates.filter(c => c && typeof c.id === "string" && typeof c.name === "string") : [];
-    ep.candidates.forEach(c => { c.classroom = typeof c.classroom === "string" ? c.classroom : ""; });
+    ep.candidates.forEach(c => {
+      c.classroom = typeof c.classroom === "string" ? c.classroom : "";
+      if (own(c,"aliases")) c.aliases = Array.isArray(c.aliases) ? c.aliases.filter(n => typeof n === "string") : [];
+      ["group", "feedback"].forEach(k => { if (own(c,k) && typeof c[k] !== "string") c[k] = ""; });
+      if (own(c,"order")) c.order = Number.isFinite(Number(c.order)) ? Math.max(0, Math.floor(Number(c.order))) : 0;
+      if (own(c,"situation") && !["present","absent","exempt","postponed"].includes(c.situation)) c.situation = "present";
+    });
     ep.mine = obj(ep.mine); ep.others = obj(ep.others); ep.final = obj(ep.final);
     ep.history = Array.isArray(ep.history) ? ep.history : [];
     Object.keys(ep.mine).forEach(k => { ep.mine[k] = normEval(ep.mine[k]); });
@@ -774,11 +781,14 @@
   function mergeEpreuve(T, I) {
     const idMap = {};
     I.candidates.forEach(c => {
-      let t = T.candidates.find(x => normName(x.name) === normName(c.name));
+      let t = T.candidates.find(x => [x.name, ...(x.aliases || [])].some(n => [c.name, ...(c.aliases || [])].some(m => normName(n) === normName(m))));
       if (!t) {
-        t = {id:T.candidates.some(x => x.id === c.id) ? uid() : c.id, name:c.name, classroom:c.classroom || ""};
+        t = {...clone(c), id:T.candidates.some(x => x.id === c.id) ? uid() : c.id, classroom:c.classroom || ""};
         T.candidates.push(t);
       } else if (!t.classroom && c.classroom) t.classroom = c.classroom;
+      if ((c.organizationAt || 0) > (t.organizationAt || 0)) {
+        ["group", "order", "situation", "feedback", "organizationAt"].forEach(k => { if (own(c,k)) t[k]=clone(c[k]); });
+      }
       idMap[c.id] = t.id;
     });
     T.candidates.sort((a, b) => a.name.localeCompare(b.name, "fr"));
@@ -790,9 +800,15 @@
       else if (!cur.initial && ev.initial) cur.initial = ev.initial;
     });
     Object.entries(I.others).forEach(([name, o]) => {
-      const cur = get(T.others, name);
-      if (!cur) { T.others[name] = o; return; }
+      const rows = {};
       Object.entries(o.rows).forEach(([key, ev]) => {
+        const source = I.candidates.find(c => [c.name, ...(c.aliases || [])].some(n => normName(n) === key));
+        const target = source && T.candidates.find(c => c.id === idMap[source.id]);
+        rows[target ? normName(target.name) : key] = ev;
+      });
+      const cur = get(T.others, name);
+      if (!cur) { T.others[name] = {...o, rows}; return; }
+      Object.entries(rows).forEach(([key, ev]) => {
         const c = get(cur.rows, key);
         if (isFilled(ev) && (!isFilled(c) || (ev.updatedAt || 0) > (c.updatedAt || 0))) cur.rows[key] = ev;
       });

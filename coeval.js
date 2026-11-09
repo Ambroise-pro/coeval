@@ -11,6 +11,7 @@
   "use strict";
 
   const C = window.CoEvalCore;
+  const W = window.CoEvalWorkflow;
   const {GRID, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, fmt, normName} = C;
   const KEY = "df-coeval-v1";
 
@@ -21,7 +22,8 @@
   const dot = (cr, d) => d ? `<span class="ce-dot d${d}">${cr.names ? cr.names[d - 1] : "D" + d}</span>` : "";
 
   let db = load();
-  let tab = "eval";
+  let tab = "home";
+  let storageError = false, offlineReady = false, lastInput = null, pendingCsv = null, pendingExchange = null, pendingBackup = null, stopTestCamera = null;
   let currentId = null;
   let crossId = null;
   let crossView = "table";
@@ -62,12 +64,14 @@
   }
 
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(db)); }
-    catch (e) { toast("⚠️ Enregistrement impossible sur cet appareil : sauvegarde l'épreuve dans un fichier."); }
+    try { localStorage.setItem(KEY, JSON.stringify(db)); storageError = false; }
+    catch (e) { storageError = true; }
+    renderNotice(active());
+    return !storageError;
   }
 
   function active() {
-    return db.epreuves.find(e => e.id === db.activeId) || db.epreuves[0] || null;
+    return db.epreuves.find(e => e.id === db.activeId && !e.archived) || db.epreuves.find(e => !e.archived) || null;
   }
 
   function newEpreuve(title, role = "prof") {
@@ -97,8 +101,8 @@
   const roleOf = ep => ep?.role || (ep?.prepFrom ? "coeval" : "prof");
   const ROLE_LABEL = {prof:"Professeur", coeval:"Co-évaluateur"};
   const TABS = {
-    prof:[["prep", "1 · Préparer"], ["eval", "2 · Évaluer"], ["cross", "3 · Croiser"]],
-    coeval:[["share", "1 · Recevoir"], ["eval", "2 · Évaluer"], ["send", "3 · Envoyer"]]
+    prof:[["home", "Vue d’ensemble"], ["prep", "1 · Préparer"], ["eval", "2 · Évaluer"], ["cross", "3 · Croiser"]],
+    coeval:[["home", "Vue d’ensemble"], ["share", "1 · Recevoir"], ["eval", "2 · Évaluer"], ["send", "3 · Envoyer"]]
   };
 
   /* Préférences d'affichage propres à cet appareil (pas des données d'épreuve). */
@@ -140,7 +144,7 @@
     return {state:ev?.done ? "done" : filled === C.AFL1_IDS.length ? "complete" : filled ? "partial" : "todo", filled, total:C.AFL1_IDS.length, s};
   }
   const log = (ep, entry) => C.logHistory(ep, entry, db.me);
-  const hasContent = ep => ep.candidates.some(c => C.isFilled(C.get(ep.mine, c.id))) || Object.keys(ep.others).length || Object.keys(ep.final).length;
+  const hasContent = ep => ep.candidates.length || Object.keys(ep.others).length || Object.keys(ep.final).length || ep.trash?.length;
   const unsaved = ep => hasContent(ep) && ep.backupHash !== C.contentHash(ep);
 
   function readTextFile(file, then) {
@@ -165,6 +169,7 @@
   }
 
   function openDialog(html) {
+    stopTestCamera?.(); stopTestCamera = null;
     const dlg = $("ceDialog");
     dlg.innerHTML = `<form method="dialog" class="ce-dialog">${html}</form>`;
     if (!dlg.open) dlg.showModal();
@@ -177,8 +182,8 @@
 
   function renderBar() {
     const sel = $("ceEpreuve");
-    sel.innerHTML = db.epreuves.length
-      ? db.epreuves.map(e => `<option value="${esc(e.id)}"${e.id === active()?.id ? " selected" : ""}>${esc(e.title)} · ${e.candidates.length} candidat(s)</option>`).join("")
+    sel.innerHTML = db.epreuves.some(e => !e.archived)
+      ? db.epreuves.filter(e => !e.archived).map(e => `<option value="${esc(e.id)}"${e.id === active()?.id ? " selected" : ""}>${esc(e.title)} · ${e.candidates.length} candidat(s)</option>`).join("")
       : `<option value="">Aucune épreuve</option>`;
     const ep = active();
     $("ceMe").textContent = "👤 " + (db.me || "Qui évalue ?") + (ep && db.me ? ` · ${ROLE_LABEL[roleOf(ep)]}` : "");
@@ -192,22 +197,22 @@
   /* Rappel discret de sauvegarde : hors saisie, ou quand toutes mes fiches sont terminées. */
   function renderNotice(ep) {
     const box = $("ceNotice");
-    const myDone = ep && ep.candidates.length && ep.candidates.every(c => C.get(ep.mine, c.id)?.done);
-    const show = ep && db.me && unsaved(ep) && (tab !== "eval" || myDone);
-    box.innerHTML = show
-      ? `<div class="ce-notice"><span>💾 Non sauvegardé</span><button type="button" class="ce-link" data-act="backup">Sauvegarder</button></div>`
-      : "";
+    if (!box) return;
+    box.innerHTML = `${storageError ? '<div class="ce-storage-error" role="alert"><b>Enregistrement impossible sur cet appareil.</b> Garde cette page ouverte et exporte immédiatement une copie de secours. <button type="button" data-act="backup">Exporter l’épreuve</button></div>' : ''}
+      ${ep && db.me ? `<div class="ce-notice"><span>${storageError?'Données en mémoire uniquement':'Enregistré sur cet appareil'} · ${offlineReady?'Disponible hors connexion':'Hors connexion : à vérifier'}</span><button type="button" data-act="readiness">Vérifier</button><button type="button" data-act="backup">Copie de secours${unsaved(ep)?' à actualiser':''}</button></div>` : ''}`;
   }
 
   function render() {
     if (stopCamera && tab !== "share" && tab !== "cross") { stopCamera(); stopCamera = null; }
+    document.body.classList.toggle("ce-passage", !!ui.passage && tab === "eval");
     renderBar();
     const ep = active();
     renderNotice(ep);
     const main = $("ceMain");
     if (!db.me) { main.innerHTML = welcomeHTML(); return; }
     if (!ep) { if (tab === "share") renderShare(main, null); else main.innerHTML = noEpreuveHTML(); return; }
-    if (tab === "prep") renderEval(main, ep, "prep");
+    if (tab === "home") renderDashboard(main, ep);
+    else if (tab === "prep") renderEval(main, ep, "prep");
     else if (tab === "eval") renderEval(main, ep, "afl1");
     else if (tab === "share") renderShare(main, ep);
     else if (tab === "send") renderSend(main, ep);
@@ -219,7 +224,7 @@
       <h2>Bienvenue 👋</h2>
       <p>Le professeur de la classe prépare et valide ; le co-évaluateur note l'AFL1. Chacun sur son appareil, sans voir l'autre.</p>
       <label>Ton nom d'évaluateur<input id="ceMeInput" placeholder="ex. M. Le Pannérer" autocomplete="name"></label>
-      <button type="button" class="ce-primary" data-act="set-me">Commencer</button>
+      <button type="button" class="ce-primary" data-act="set-me">Commencer</button><button type="button" data-act="demo">Essayer avec une classe fictive</button>
     </section>`;
   }
 
@@ -232,7 +237,7 @@
         <button type="button" class="ce-role" data-act="go-receive"><b>🤝 Je suis co-évaluateur</b>
           <span>Je reçois la préparation du professeur, je note l'AFL1 et je lui envoie mon évaluation.</span></button>
       </div>
-      <details class="ce-more"><summary>Autres options</summary>
+      <button type="button" data-act="demo">Essayer avec une classe d’exemple</button><button type="button" data-act="manage">Archives et corbeille</button><details class="ce-more"><summary>Autres options</summary>
         <div class="ce-actions">
           <button type="button" data-act="demo">🧪 Essayer avec une classe d'exemple (28 élèves)</button>
           <label class="ce-button">📂 Restaurer une sauvegarde<input id="ceRestore" type="file" accept=".json,application/json" hidden></label>
@@ -258,24 +263,27 @@
       return;
     }
     if (!candById(ep, currentId)) currentId = ep.candidates[0].id;
+    const visible = viewCandidates(ep);
+    if (visible.length && !visible.some(c => c.id === currentId)) currentId = visible[0].id;
+    if(!visible.length) {main.innerHTML=`<div class="ce-eval"><aside class="ce-list">${listControls(ep)}</aside><section class="ce-card"><h2>Aucun élève pour ces filtres</h2><button type="button" data-act="clear-filters">Afficher tous les élèves</button></section></div>`;return;}
     const cand = candById(ep, currentId);
     const ev = evalOf(ep, cand.id);
     const s = C.scores(ev);
-    const idx = ep.candidates.indexOf(cand);
-    const locked = !!ev.done;
+    const idx = visible.indexOf(cand);
+    const locked = !!ev.done || !W.eligible(cand);
     const dis = locked ? " disabled" : "";
     const pre = ev.pre && !ev.pre.unlocked ? ev.pre : null;
 
     const labels = SCOPE_LABELS[scope];
     const progress = ep.candidates.map(c => ({c, p:scopeProgress(C.get(ep.mine, c.id), scope)}));
     const counts = Object.fromEntries(Object.keys(PROGRESS).map(k => [k, progress.filter(x => x.p.state === k).length]));
-    if (evalFilter !== "all" && !counts[evalFilter]) evalFilter = "all";
-    const list = progress.filter(x => evalFilter === "all" || x.p.state === evalFilter).map(({c, p}) => {
+
+    const list = visible.map(c => ({c,p:scopeProgress(C.get(ep.mine,c.id),scope)})).map(({c, p}) => {
       const right = !prepScope && (p.state === "done" || p.state === "complete") && p.s.complete ? fmt(p.s.total) + "/20"
         : prepScope && p.state === "complete" ? "✓" : p.filled + "/" + p.total;
       return `<button type="button" class="ce-cand ${p.state}${c.id === cand.id ? " current" : ""}" data-act="pick" data-id="${esc(c.id)}" aria-label="${esc(c.name)} : ${labels[p.state]}, ${p.filled} sur ${p.total}">
         <span class="ce-pg-icon">${ring(p.state, p.filled, p.total)}</span>
-        <span class="ce-cand-name">${esc(c.name)}${c.classroom ? ` <i>${esc(c.classroom)}</i>` : ""}</span>
+        <span class="ce-cand-name">${esc(c.name)}${c.classroom ? ` <i>${esc(c.classroom)}</i>` : ""}${!W.eligible(c)?` <small>${W.SITUATIONS[c.situation]||"Situation particulière"}</small>`:""}</span>
         <span class="ce-cand-right"><small>${right}</small>${p.state === "done" ? "" : minibar(p.filled, p.total)}</span></button>`;
     }).join("");
     const legend = Object.keys(PROGRESS).filter(k => counts[k]).map(k => `<button type="button" class="ce-pg-chip ${k}${evalFilter === k ? " on" : ""}" data-act="eval-filter" data-filter="${k}" aria-pressed="${evalFilter === k}">
@@ -291,8 +299,7 @@
       ${locked ? `<button type="button" class="ce-link" data-act="reopen">Modifier</button>`
         : pre ? `<button type="button" class="ce-link" data-act="unlock-pre" title="AFL2/AFL3 faits par ${esc(pre.by)} : modifier">Modifier</button>`
         : canEdit ? `<button type="button" class="ce-link" data-act="edit-choices">Modifier</button>` : ""}
-      <button type="button" class="ce-link ce-desc-toggle" data-act="toggle-input" title="${useSlider() ? "Noter avec des cases" : "Noter avec des curseurs"}">${useSlider() ? "▦ Cases" : "🎚️ Curseurs"}</button>
-      <button type="button" class="ce-link ce-desc-toggle" data-act="toggle-desc" aria-pressed="${!!ui.desc}" title="${ui.desc ? "Masquer" : "Voir"} les descripteurs">📖</button></p>`;
+</p>`;
     const choice = (field, options, label) => {
       const fixed = pre?.choices.includes(field);
       return `<div class="ce-choice"><span>${label}${fixed ? " 🗂️" : ""}</span>${
@@ -318,14 +325,16 @@
     const part = (val, p) => val != null ? fmt(val) : p != null ? fmt(p) + "…" : "—";
 
     main.innerHTML = `<div class="ce-eval">
-      <aside class="ce-list">${listTop}<div class="ce-pg-legend">${legend}</div>${list}</aside>
+      <aside class="ce-list">${listTop}${listControls(ep)}<div class="ce-pg-legend">${legend}</div>${list || "<p>Aucun élève pour ces filtres.</p>"}</aside>
       <section class="ce-sheet">
-        <div class="ce-card ce-cand-head">
+        ${!visible.length?'<p class="ce-warn">Aucun résultat : la fiche ci-dessous reste celle de l’élève précédemment sélectionné.</p>':""}<div class="ce-card ce-cand-head">
           <div class="ce-nav">
-            <button type="button" data-act="step" data-step="-1" aria-label="Candidat précédent" ${idx === 0 ? "disabled" : ""}>←</button>
+            <button type="button" data-act="step" data-step="-1" aria-label="Candidat précédent" ${idx <= 0 ? "disabled" : ""}>←</button>
             <h2>${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</h2>
-            <button type="button" data-act="step" data-step="1" aria-label="Candidat suivant" ${idx === ep.candidates.length - 1 ? "disabled" : ""}>→</button>
+            <button type="button" data-act="step" data-step="1" aria-label="Candidat suivant" ${idx < 0 || idx === visible.length - 1 ? "disabled" : ""}>→</button>
           </div>
+          <div class="ce-actions"><button type="button" data-act="edit-candidate" data-id="${esc(cand.id)}">${W.SITUATIONS[cand.situation||'present']} · Modifier</button>${!prepScope?`<button type="button" data-act="toggle-input">${useSlider()?'Saisir avec des cases':'Saisir avec des curseurs'}</button><button type="button" data-act="toggle-desc" aria-pressed="${!!ui.desc}">${ui.desc?'Masquer':'Voir'} les descripteurs</button><button type="button" data-act="passage" aria-pressed="${!!ui.passage}">${ui.passage?'Quitter le mode Passage':'Mode Passage'}</button>${ui.passage?'<button type="button" data-act="passage-help">Consulter les critères</button>':''}`:''}<button type="button" data-act="undo-input"${lastInput?.ep===ep.id&&lastInput?.cand===cand.id&&lastInput.after===JSON.stringify(ev)?'':' disabled'}>Annuler la dernière saisie</button></div>
+          ${!W.eligible(cand)?'<p class="ce-warn">Situation particulière : les notes sont conservées. Réactive « À évaluer » pour reprendre le passage.</p>':''}
           ${lockBar}
           ${preBar}
           ${fixedChoices ? choiceLine : `${choice("theme", THEMES, "Thème")}
@@ -335,13 +344,14 @@
         </div>
         ${groups}
         ${prepScope ? `<div class="ce-card">
-          <button type="button" class="ce-primary ce-wide" data-act="step" data-step="1"${idx === ep.candidates.length - 1 ? " disabled" : ""}>Élève suivant →</button>
+          <button type="button" class="ce-primary ce-wide" data-act="step" data-step="1"${idx < 0 || idx === visible.length - 1 ? " disabled" : ""}>Élève suivant →</button>
         </div>
         <div class="ce-total">
           <span>AFL2 <b>${part(s.afl2, s.afl2p)}</b>/${SPLITS[ev.split]?.[0] ?? "?"}</span>
           <span>AFL3 <b>${part(s.afl3, s.afl3p)}</b>/${SPLITS[ev.split]?.[1] ?? "?"}</span>
           <strong>${scopeProgress(ev, "prep").state === "complete" ? "✓ Préparation complète" : "Préparation " + scopeProgress(ev, "prep").filled + "/6"}</strong>
         </div>` : `<div class="ce-card">
+          ${!locked && C.missingFields(ev).length?`<p class="ce-hint">À compléter : ${C.missingFields(ev).map(esc).join(', ')}.</p>`:''}
           ${locked ? "" : `<button type="button" class="ce-primary ce-wide" data-act="finish">✔ Terminer mon évaluation</button>`}
           <details class="ce-more"${ev.comment ? " open" : ""}><summary>💬 Remarque${ev.comment ? " (1)" : ""}</summary>
             <textarea data-field="comment" rows="2" aria-label="Remarque"${locked ? " readonly" : ""}>${esc(ev.comment)}</textarea></details>
@@ -514,7 +524,8 @@
   function setValue(ep, critId, deg, value) {
     const cand = candById(ep, currentId);
     const ev = evalOf(ep, currentId);
-    if (ev.done || (ev.pre && !ev.pre.unlocked && ev.pre.crits.includes(critId))) return;
+    if (!W.eligible(cand) || ev.done || (ev.pre && !ev.pre.unlocked && ev.pre.crits.includes(critId))) return;
+    const previous = C.clone(ev);
     const crit = C.critById(critId);
     const before = ev.v[critId] != null ? `D${C.degreeOf(crit, ev.v[critId], ev.d[critId])} ${fmt(ev.v[critId])}` : "";
     const range = crit.deg[deg - 1];
@@ -526,6 +537,7 @@
     const after = ev.v[critId] != null ? `D${deg} ${fmt(ev.v[critId])}` : "";
     logEdit(ep, cand, ev, crit.label, before, after);
     ev.updatedAt = Date.now();
+    rememberInput(ep, cand, previous, ev);
     save();
   }
 
@@ -593,6 +605,7 @@
       const missing = missingOf(o.parts);
       return `<li><b>${esc(name)}</b> · ${rows.length} fiche(s)
         ${missing.length ? `<span class="ce-warn">⚠️ QR manquants : ${missing.join(", ")}</span>` : `<span class="ce-ok-text">✓</span>`}
+        <button type="button" data-act="receipt" data-name="${esc(name)}">Confirmer la réception</button>
         <button type="button" class="ce-link" data-act="drop-other" data-name="${esc(name)}">Retirer</button></li>`;
     }).join("");
     let prep = "";
@@ -608,7 +621,7 @@
       <div class="ce-actions">
         <button type="button" class="ce-primary" data-act="scan">📷 Scanner le QR du collègue</button>
       </div>
-      <details class="ce-more"><summary>Autres moyens (fichier, code)</summary>
+      <p class="ce-hint">Côte à côte : QR. À distance : fichier ou code.</p><details class="ce-more"><summary>Fichier ou code pour un envoi à distance</summary>
         <div class="ce-actions"><label class="ce-button">📂 Importer un fichier<input id="ceFile" type="file" accept=".json,application/json" hidden></label></div>
         <textarea id="cePaste" rows="3" placeholder="…ou colle ici le code COEVAL1:…" aria-label="Code à coller"></textarea>
         <button type="button" data-act="paste">Valider le code</button>
@@ -617,10 +630,10 @@
     </section>`;
   }
 
-  const backupHTML = ep => `<details class="ce-card ce-more ce-backup"><summary>💾 Sauvegarde${unsaved(ep) ? ` <span class="ce-warn">· non sauvegardée</span>` : ep.backupAt ? ` <small>· ${when(ep.backupAt)}</small>` : ""}</summary>
-      <p class="ce-hint">Tout dans un fichier : fiches, évaluations reçues, décisions, historique.</p>
+  const backupHTML = ep => `<details class="ce-card ce-more ce-backup"><summary>💾 Sauvegarde${unsaved(ep) ? ` <span class="ce-warn">· copie de secours à actualiser</span>` : ep.backupAt ? ` <small>· ${when(ep.backupAt)}</small>` : ""}</summary>
+      <p class="ce-hint">Enregistrement automatique sur cet appareil. La copie de secours contient fiches, évaluations reçues, décisions et historique. ${ep.backupAt?`Dernière copie confirmée : ${when(ep.backupAt)}.`:"Aucune copie de secours confirmée."}</p>
       <div class="ce-actions">
-        <button type="button" class="ce-primary" data-act="backup">💾 Sauvegarder l'épreuve</button>
+        <button type="button" class="ce-primary" data-act="backup">💾 Sauvegarder l’épreuve</button><button type="button" data-act="backup-download">Télécharger directement</button>
         <label class="ce-button">📂 Restaurer une sauvegarde<input id="ceRestore" type="file" accept=".json,application/json" hidden></label>
       </div>
     </details>`;
@@ -655,10 +668,11 @@
         <p class="${done < ep.candidates.length ? "ce-warn" : "ce-ok-text"}">${done} fiche(s) terminée(s) sur ${ep.candidates.length}.</p>
         <p class="ce-hint">Le professeur scanne ${parts.length > 1 ? `les ${parts.length} QR, dans n'importe quel ordre,` : "ce QR"} dans son onglet « 3 · Croiser ».</p>
         ${qrBlock(parts, shareIndex, "qr-step")}
-        <details class="ce-more"><summary>Autres moyens (fichier, code)</summary>
+        <p class="ce-hint">Côte à côte : QR. À distance : fichier ou code.</p><details class="ce-more"><summary>Fichier ou code pour un envoi à distance</summary>
           <div class="ce-actions"><button type="button" data-act="download">💾 Fichier (avec remarques)</button><button type="button" data-act="copy-code">📋 Copier le code</button></div>
         </details>
       </section>
+      <section class="ce-card"><h2>Confirmation du collègue</h2>${ep.lastExport?`<p>Dernier ${ep.lastExport.method==='shared'?'partage effectué':'téléchargement demandé'} : ${when(ep.lastExport.at)}${ep.lastExport.fingerprint!==W.fingerprint(ep)?' · notes modifiées depuis':''}.</p>`:''}<p>Afficher ou exporter les QR ne confirme pas leur réception.</p>${(ep.receipts||[]).map(r=>`<p>${esc(r.by)} · ${when(r.at)} · ${r.fingerprint===W.fingerprint(ep)?'version actuelle reçue':'notes modifiées depuis ce reçu'}</p>`).join('')}${receiveHTML(ep,'Recevoir un accusé de réception')}</section>
       ${backupHTML(ep)}
     </div>`;
   }
@@ -673,7 +687,7 @@
       <p class="${ready < ep.candidates.length ? "ce-warn" : "ce-ok-text"}">${ready} élève(s) prêt(s) sur ${ep.candidates.length}${ready < ep.candidates.length ? " : les autres partent incomplets" : " ✓"}.</p>
       <p class="ce-hint">Le co-évaluateur choisit « Je suis co-évaluateur » puis scanne ${parts.length > 1 ? "les QR, dans n'importe quel ordre" : "ce QR"}.</p>
       ${qrBlock(parts, prepIndex, "prep-step")}
-      <details class="ce-more"><summary>Autres moyens (fichier, code)</summary>
+      <p class="ce-hint">Côte à côte : QR. À distance : fichier ou code.</p><details class="ce-more"><summary>Fichier ou code pour un envoi à distance</summary>
         <div class="ce-actions"><button type="button" data-act="prep-download">💾 Fichier</button><button type="button" data-act="prep-copy">📋 Copier le code</button></div>
       </details>
       <div class="ce-actions"><button value="close" class="ce-primary">Fermer</button></div></div>`);
@@ -718,7 +732,8 @@
               lastText = text;
               const res = importText(text);
               status.textContent = res.message;
-              if (res.done) { stopCamera(); stopCamera = null; render(); toast(res.message); return; }
+              if (res.pending) { stopCamera?.(); stopCamera = null; return; }
+              if (res.done) { stopCamera?.(); stopCamera = null; render(); toast(res.message); return; }
               if (navigator.vibrate) navigator.vibrate(60);
             }
           }
@@ -737,53 +752,54 @@
   }
 
   function importText(text) {
+    if (String(text).startsWith('COEVAL-ACK:')) {
+      try { return receiveReceipt(JSON.parse(text.slice(11))); } catch(e) { return {done:false,message:'Accusé illisible.'}; }
+    }
     const parsed = C.parseCodes(text);
     if (parsed.error) return {done:false, message:parsed.error};
-    const res = importInto(parsed.payloads, parsed.payloads[0].title);
-    return {...res, done:!res.error && res.done, message:C.mergeMessage(res)};
+    return previewExchange(parsed.payloads, parsed.payloads[0].title);
+  }
+  function receiveReceipt(receipt) {
+    try {
+      if(!active()) throw new Error('Ouvre l’épreuve concernée.');
+      W.acceptReceipt(active(),receipt,db.me); save(); render();
+      const message='Réception confirmée par '+receipt.by+'.';toast(message);return {done:true,message};
+    } catch(e) {toast(e.message);return {done:false,message:e.message};}
   }
 
-  /* Importe dans l'épreuve active, ou dans une nouvelle si aucune n'existe (co-évaluateur
-     qui reçoit la préparation). Une préparation complète ouvre directement « Évaluer ». */
-  function importInto(payloads, title) {
-    const created = !active();
-    const ep = active() || newEpreuve(title || "Épreuve importée", payloads.some(p => p.prep) ? "coeval" : "prof");
-    const res = C.importPayloads(ep, payloads, db.me);
-    if (res.error && created) db.epreuves = db.epreuves.filter(e => e !== ep);
-    if (res.prep && res.done && !res.error) { tab = "eval"; currentId = null; }
-    save();
-    return res;
-  }
-
-  function downloadJSON(name, data, title) {
+  async function downloadJSON(name, data, title, forceDownload = false) {
     const blob = new Blob([JSON.stringify(data)], {type:"application/json"});
     const file = new File([blob], name, {type:"application/json"});
-    if (navigator.canShare?.({files:[file]})) {
-      navigator.share({files:[file], title}).catch(() => {});
-      return;
+    if (!forceDownload && navigator.canShare?.({files:[file]})) {
+      try { await navigator.share({files:[file], title}); return 'shared'; }
+      catch (e) { toast(e.name === 'AbortError' ? 'Partage annulé : aucune copie de secours confirmée.' : 'Partage impossible. Réessaie ou utilise un navigateur permettant le téléchargement.'); return 'cancelled'; }
     }
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    a.click();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    return 'download';
   }
 
   const slug = s => normName(s).replace(/ /g, "-");
 
-  function download(ep) {
-    downloadJSON(`coeval_${slug(ep.title)}_${slug(db.me)}.json`, C.exportFile(ep, db.me), ep.title);
+  async function download(ep) {
+    const fingerprint=W.fingerprint(ep);
+    const result=await downloadJSON(`coeval_${slug(ep.title)}_${slug(db.me)}.json`, C.exportFile(ep, db.me), ep.title);
+    if(result!=='cancelled'){ep.lastExport={at:Date.now(),method:result,fingerprint};save();render();toast(result==='shared'?'Évaluation partagée. La réception reste à confirmer.':'Téléchargement demandé. Transmets le fichier au collègue.');}
   }
 
-  function backup(ep) {
-    const data = C.makeBackup(ep, db.me);
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
-    downloadJSON(`sauvegarde_${slug(ep.title)}_${slug(db.me)}_${stamp}.json`, data, ep.title);
-    ep.backupAt = data.savedAt;
-    ep.backupHash = C.contentHash(ep);
-    save();
+  async function backup(ep, forceDownload = false) {
+    const data = C.makeBackup(ep, db.me), hash = C.contentHash(ep);
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    const result = await downloadJSON(`sauvegarde_${slug(ep.title)}_${slug(db.me)}_${stamp}.json`, data, ep.title, forceDownload);
+    if (result === 'cancelled') return;
+    if (result === 'shared') { ep.backupAt = data.savedAt; ep.backupHash = hash; save(); }
     render();
-    toast("💾 Sauvegarde créée. Range le fichier en lieu sûr.");
+    if(result === 'download') {
+      pendingBackup={epId:ep.id,hash,at:data.savedAt};
+      openDialog(`<h2>Vérifier la copie de secours</h2><p>Le téléchargement a été demandé. Vérifie que le fichier JSON existe et est conservé en lieu sûr avant de confirmer.</p><div class="ce-actions"><button type="button" data-act="confirm-backup">J’ai vérifié le fichier</button><button value="close">Pas encore</button></div>`);
+    }
+    toast(result === 'shared' ? 'Partage effectué. Vérifie que le fichier est conservé en lieu sûr.' : 'Téléchargement demandé. Vérifie le fichier dans tes téléchargements ; sa conservation ne peut pas être confirmée ici.');
   }
 
   /* Un seul bouton d'import : fichier d'échange d'un collègue ou sauvegarde complète. */
@@ -791,11 +807,10 @@
     readTextFile(file, text => {
       let d;
       try { d = JSON.parse(text); } catch (e) { toast("Fichier non reconnu."); return; }
+      if (d?.type === "coeval-receipt") { receiveReceipt(d); return; }
       if (d?.type === "coeval-backup") { openRestore(d); return; }
       if (d?.type !== "coeval-musculation" && d?.type !== "coeval-preparation") { toast("Fichier non reconnu."); return; }
-      const res = importInto([C.fileToPayload(d)], d.title);
-      toast(C.mergeMessage(res));
-      render();
+      previewExchange([C.fileToPayload(d)], d.title);
     });
   }
 
@@ -832,10 +847,12 @@
     const targetId = $("ceRestoreTarget")?.value || null;
     if (mode === "replace") {
       const t = db.epreuves.find(e => e.id === targetId);
-      if (!confirm(`Remplacer définitivement « ${t?.title} » par la sauvegarde ? Les données actuelles de cette épreuve seront perdues.`)) return;
+      if (!confirm(`Remplacer « ${t?.title} » par la sauvegarde ? Une copie de l’épreuve actuelle sera conservée dans la corbeille.`)) return;
     }
+    const replaced=mode==="replace" ? C.clone(db.epreuves.find(e=>e.id===targetId)) : null;
     const res = C.restoreBackup(db, pendingRestore, {mode, targetId}, db.me);
     if (res.error) { toast(res.error); return; }
+    if(replaced){replaced.id=C.uid();replaced.title+=" · avant restauration";(db.trash ||= []).push(replaced);}
     pendingRestore = null;
     currentId = crossId = null;
     save();
@@ -859,13 +876,13 @@
     const count = f => items.filter(f).length;
     const st = x => x.r.h.status;
     const validated = count(x => x.r.validated);
-    const todo = count(x => C.needsAction(x.r));
+    const todo = count(x => W.eligible(x.c) && C.needsAction(x.r));
     const majors = count(x => st(x) === "major");
     const ready = C.accordReady(ep, db.me);
     const chip = (filter, num, label, tone) => num ? `<button type="button" class="ce-fchip ${tone}${crossFilter === filter ? " on" : ""}" data-act="filter" data-filter="${filter}" aria-pressed="${crossFilter === filter}">
       <b>${num}</b> ${label}</button>` : "";
     const filters = {
-      all:() => true, todo:x => C.needsAction(x.r), validated:x => !!x.r.validated,
+      all:() => true, todo:x => W.eligible(x.c) && C.needsAction(x.r), validated:x => !!x.r.validated,
       degree:x => st(x) === "major" || st(x) === "degree", choices:x => st(x) === "choices",
       points:x => st(x) === "points", incomplete:x => st(x) === "incomplete", accord:x => st(x) === "accord"
     };
@@ -891,7 +908,7 @@
         : `<span class="ce-prov">—</span>`;
       return `<tr data-act="cross-open" data-id="${esc(c.id)}">
         <td><b>${esc(c.name)}</b>${c.classroom ? ` <small>${esc(c.classroom)}</small>` : ""}</td>
-        <td>${tag(r.h.status)}${detail}</td>
+        <td>${!W.eligible(c)?`<span class="ce-tag">${W.SITUATIONS[c.situation]||"Situation particulière"}</span>`:tag(r.h.status)}${detail}</td>
         <td class="num ce-note">${note}</td>
         ${r.entries.map(cellOf).join("")}
         <td class="num${gap >= 2 ? " ce-big-gap" : ""}">${fmt(gap)}</td></tr>`;
@@ -927,7 +944,7 @@
           <button type="button" data-act="csv">⬇️ CSV synthèse</button>
           <button type="button" data-act="csv-detail">⬇️ CSV détaillé (degrés)</button>
           <button type="button" data-act="csv-history">⬇️ Historique des décisions</button>
-          <button type="button" data-act="print-sheets">🖨️ Fiches par candidat</button>
+          <button type="button" data-act="print-sheets">🖨️ Fiches par candidat</button><button type="button" data-act="feedback">Rédiger les retours aux élèves</button><button type="button" data-act="print-feedback">Imprimer les retours aux élèves</button>
           <button type="button" data-act="pv">📄 Procès-verbal</button>
           <button type="button" data-act="print">🖨️ Ce tableau</button>
           <button type="button" data-act="backup">💾 Sauvegarder l'épreuve</button>
@@ -946,7 +963,7 @@
     const idx = ep.candidates.indexOf(cand);
     return `<div class="ce-nav">
         <button type="button" data-act="cross-back">← Tableau</button>
-        <button type="button" data-act="cross-step" data-step="-1" aria-label="Candidat précédent" ${idx === 0 ? "disabled" : ""}>←</button>
+        <button type="button" data-act="cross-step" data-step="-1" aria-label="Candidat précédent" ${idx <= 0 ? "disabled" : ""}>←</button>
         <h2>${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</h2>
         <button type="button" data-act="cross-step" data-step="1" aria-label="Candidat suivant" ${idx === ep.candidates.length - 1 ? "disabled" : ""}>→</button>
       </div>`;
@@ -1329,14 +1346,14 @@
 
   function csvSummary(ep) {
     const names = [db.me, ...Object.keys(ep.others)];
-    const lines = [["Candidat", "Classe", "Thème", "Répartition AFL2/AFL3", "Rôle AFL3", ...names.map(n => "Total " + n), "Écart total",
+    const lines = [["Candidat", "Classe", "Situation", "Groupe", "Ordre de passage", "Thème", "Répartition AFL2/AFL3", "Rôle AFL3", ...names.map(n => "Total " + n), "Écart total",
       "AFL1 retenu", "AFL2 retenu", "AFL3 retenu", "Note harmonisée /20", "Statut", "Croisement", "Validée le", "Validée par"]];
     ep.candidates.forEach(c => {
       const r = C.retainedFor(ep, c, db.me);
       const totals = r.entries.map(x => x.ev ? C.scores(x.ev).total : null);
       const known = totals.filter(t => t != null);
       const s = r.validated || r.h.scores;
-      lines.push([c.name, c.classroom, THEMES[r.ev.theme] || "", r.ev.split, ROLES[r.ev.role] || "", ...totals.map(fmt),
+      lines.push([c.name, c.classroom, W.SITUATIONS[c.situation||"present"], c.group||"", c.order||"", THEMES[r.ev.theme] || "", r.ev.split, ROLES[r.ev.role] || "", ...totals.map(fmt),
         fmt(known.length > 1 ? Math.max(...known) - Math.min(...known) : null), fmt(s.afl1), fmt(s.afl2), fmt(s.afl3), fmt(r.total),
         statusText(r), STATUS[r.h.status].label, r.validated ? when(r.validated.at) : "", r.validated?.by || ""]);
     });
@@ -1364,6 +1381,7 @@
   }
 
   const HISTORY_TYPES = {
+    "undo-input":"Saisie annulée", "candidate-edit":"Informations élève modifiées", "receive":"Évaluations reçues",
     "decision":"Décision sur un critère", "decision-reset":"Retour aux notes initiales", "choice":"Choix retenu",
     "harmonisation-reset":"Harmonisation réinitialisée", "validate":"Note validée", "unvalidate":"Validation annulée",
     "eval-done":"Fiche terminée", "eval-reopen":"Fiche rouverte", "eval-edit":"Fiche modifiée après validation",
@@ -1489,6 +1507,131 @@
     window.print();
   }
 
+  function rememberInput(ep, cand, before, after) {
+    lastInput = {ep:ep.id, cand:cand.id, before:C.clone(before), after:JSON.stringify(after)};
+  }
+  function undoInput(ep) {
+    if (!lastInput || lastInput.ep !== ep.id || lastInput.cand !== currentId || JSON.stringify(ep.mine[currentId]) !== lastInput.after) {
+      toast('La fiche a changé depuis cette saisie ; aucune donnée écrasée.'); return;
+    }
+    ep.mine[currentId] = {...lastInput.before, updatedAt:Date.now()};
+    log(ep, {type:'undo-input', cand:currentId, candName:candById(ep,currentId).name});
+    lastInput = null; save(); render(); toast('Dernière saisie annulée.');
+  }
+  function viewCandidates(ep) {
+    return W.candidates(ep, {search:ui.search || '', group:ui.group || '', filter:c=>evalFilter==='all'||scopeProgress(C.get(ep.mine,c.id),tab==='prep'?'prep':'afl1').state===evalFilter});
+  }
+  function listControls(ep) {
+    const groups=[...new Set(ep.candidates.map(c=>c.group).filter(Boolean))].sort();
+    return `<div class="ce-list-tools"><label>Rechercher un élève<input id="ceSearch" type="search" value="${esc(ui.search||'')}" placeholder="Nom ou classe"></label>
+      <label>Groupe<select id="ceGroup"><option value="">Tous les groupes</option>${groups.map(g=>`<option${ui.group===g?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
+      <button type="button" data-act="clear-filters">Afficher tous les élèves</button></div>`;
+  }
+  function renderDashboard(main,ep) {
+    const s=W.summary(ep,db.me), prof=roleOf(ep)==='prof';
+    const next=!s.total?['candidates','Ajouter les élèves']:prof&&s.prepared<s.expected?['prep','Compléter la préparation']:s.done<s.expected?['eval',`Reprendre les ${s.expected-s.done} évaluations à terminer`]:prof?['cross','Recevoir et croiser les évaluations']:['send','Envoyer mes évaluations'];
+    main.innerHTML=`<section class="ce-card"><h2>${esc(ep.title)}</h2><p>${s.total} élèves · ${s.special} situation(s) particulière(s)</p>
+      <div class="ce-dashboard-grid"><div><b>${s.prepared}/${s.expected}</b><span>Préparations complètes</span></div><div><b>${s.done}/${s.expected}</b><span>Mes évaluations terminées</span></div><div><b>${s.validated}/${s.expected}</b><span>Notes validées</span></div></div>
+      <div class="ce-actions"><button type="button" class="ce-primary" data-act="dashboard-next" data-target="${next[0]}">${next[1]}</button><button type="button" data-act="readiness">Avant l’épreuve</button><button type="button" data-act="manage">Archives et corbeille</button></div>
+      <p class="ce-hint">Les situations absent, dispensé et reporté sont suivies séparément, sans transformer les notes en zéro. Les notes déjà saisies restent conservées.</p>
+      <h3>Évaluations du collègue</h3>${s.received.length?s.received.map(r=>`<div class="ce-reception"><b>${esc(r.name)}</b> : ${s.expected-r.missing.length}/${s.expected} fiches reçues, ${r.complete} terminées.${r.missing.length?`<details><summary>${r.missing.length} élèves encore attendus</summary>${r.missing.map(c=>`<button type="button" data-act="open-student" data-id="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</details>`:'<p>Toutes les fiches attendues ont été reçues.</p>'}</div>`).join(''):'<p>Aucune évaluation reçue.</p>'}
+      ${backupHTML(ep)}</section>`;
+  }
+  async function checkOffline() {
+    try {
+      const registration=await navigator.serviceWorker?.getRegistration();
+      const cache=await caches.open('coeval-13');
+      const files=['./','index.html','coeval.css','coeval-core.js','coeval-demo.js','coeval-workflow.js','coeval.js','qrcode.js','jsQR.js','manifest.webmanifest'];
+      offlineReady=!!registration?.active && (await Promise.all(files.map(f=>cache.match(f)))).every(Boolean);
+    } catch(e) { offlineReady=false; }
+    renderNotice(active());
+    const status=$('ceOfflineCheck');if(status) status.textContent=offlineReady?'Application disponible hors connexion sur cet appareil.':'Disponibilité hors connexion non confirmée. Recharge en ligne puis revérifie.';
+  }
+  function openReadiness() {
+    openDialog(`<h2>Avant l’épreuve</h2><ul class="ce-checklist"><li id="ceOfflineCheck">Vérification des fichiers hors connexion…</li><li>${active()?esc(active().title)+' : '+active().candidates.length+' élèves chargés.':'Aucune épreuve chargée.'}</li><li>${active()?.backupAt?'Dernière copie de secours confirmée : '+when(active().backupAt):'Effectue une copie de secours et vérifie le fichier obtenu.'}</li></ul>
+      <p>Vérifie aussi l’autonomie de l’appareil. Pour tester le mode avion, ferme cette fenêtre après vérification puis recharge l’application sans réseau.</p>
+      <button type="button" data-act="test-camera">Tester la caméra</button><p id="ceCameraTest" role="status"></p><video id="ceTestVideo" playsinline muted class="hidden"></video>
+      <div class="ce-actions"><button type="button" data-act="check-offline">Revérifier le mode hors connexion</button><button type="button" data-act="backup">Créer une copie de secours</button><button value="close">Fermer</button></div>`);
+    checkOffline();
+  }
+  async function testCamera() {
+    const status=$('ceCameraTest'),video=$('ceTestVideo');
+    try {
+      if(!navigator.mediaDevices?.getUserMedia) throw new Error();
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+      if(!$('ceDialog').open || $('ceTestVideo') !== video) {stream.getTracks().forEach(t=>t.stop());return;}
+      stopTestCamera?.();
+      stopTestCamera=()=>{stream.getTracks().forEach(t=>t.stop());video.srcObject=null;};
+      video.srcObject=stream;video.classList.remove('hidden');await video.play();status.textContent='Caméra opérationnelle. La fermeture de cette fenêtre arrête la caméra.';
+    } catch(e) {status.textContent='Caméra indisponible ou autorisation refusée. Utilise un fichier ou un code ; la caméra demande un contexte sécurisé.';}
+  }
+  function openCandidateEditor(ep,id) {
+    const c=candById(ep,id);if(!c)return;
+    openDialog(`<h2>Modifier ${esc(c.name)}</h2><label>Nom<input id="ceEditName" value="${esc(c.name)}" required></label><label>Classe<input id="ceEditClass" value="${esc(c.classroom)}"></label><label>Groupe<input id="ceEditGroup" value="${esc(c.group)}" placeholder="Ex. Groupe 1"></label><label>Ordre de passage<input id="ceEditOrder" type="number" min="0" step="1" value="${esc(c.order||0)}"></label><p class="ce-hint">0 : ordre alphabétique, après les passages numérotés.</p><label>Situation<select id="ceEditSituation">${Object.entries(W.SITUATIONS).map(([k,v])=>`<option value="${k}"${(c.situation||'present')===k?' selected':''}>${v}</option>`).join('')}</select></label>
+      <p class="ce-hint">Ces informations d’organisation sont locales et incluses dans les sauvegardes complètes. Pour les homonymes, utilisez les mêmes noms distinctifs sur les deux appareils.</p><p id="ceEditError" role="alert"></p><div class="ce-actions"><button type="button" class="ce-primary" data-act="save-candidate" data-id="${esc(id)}">Enregistrer</button><button value="close">Annuler</button></div>`);
+  }
+  function openCsvPreview(ep,names,classes) {
+    pendingCsv={ep:ep.id,rows:W.csvPreview(ep,names,classes)};
+    const rows=pendingCsv.rows;
+    openDialog(`<h2>Vérifier la liste avant import</h2><p>${rows.filter(r=>r.status==='new').length} nouveaux élèves · ${rows.filter(r=>r.status==='duplicate').length} doublons ou homonymes à vérifier · ${rows.filter(r=>r.status==='empty').length} lignes vides ignorées.</p>
+      <p>Les noms déjà présents ne sont pas fusionnés automatiquement. Pour deux homonymes, annule puis ajoute un suffixe distinctif dans la liste.</p><div class="ce-table ce-preview-scroll"><table><thead><tr><th>Nom</th><th>Classe</th><th>Action</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)||'—'}</td><td>${esc(r.classroom)}</td><td>${{new:'Ajouter',duplicate:'Ignorer : nom déjà présent',empty:'Ignorer'}[r.status]}</td></tr>`).join('')}</tbody></table></div><div class="ce-actions"><button type="button" class="ce-primary" data-act="confirm-csv"${rows.some(r=>r.status==='new')?'':' disabled'}>Ajouter les nouveaux élèves</button><button value="close">Annuler</button></div>`);
+  }
+  function openManage() {
+    openDialog(`<h2>Archives et corbeille</h2><p>Les éléments conservés ici restent sur cet appareil. Une archive peut être rouverte sans perte de notes.</p><h3>Épreuves archivées</h3>${db.epreuves.filter(e=>e.archived).map(e=>`<p>${esc(e.title)} <button type="button" data-act="unarchive" data-id="${esc(e.id)}">Rouvrir</button></p>`).join('')||'<p>Aucune archive.</p>'}
+      <h3>Épreuves supprimées</h3>${(db.trash||[]).map(e=>`<p>${esc(e.title)} <button type="button" data-act="restore-ep" data-id="${esc(e.id)}">Restaurer</button></p>`).join('')||'<p>Aucune épreuve supprimée.</p>'}
+      <h3>Élèves supprimés de l’épreuve active</h3>${(active()?.trash||[]).map(x=>`<p>${esc(x.cand.name)} <button type="button" data-act="restore-candidate" data-id="${esc(x.id)}">Restaurer avec ses notes</button></p>`).join('')||'<p>Aucun élève supprimé.</p>'}
+      <button value="close">Fermer</button>`);
+  }
+  function emptyImportEpreuve(title,prep) {
+    return {id:C.uid(),title:title||'Épreuve importée',role:prep?'coeval':'prof',createdAt:Date.now(),candidates:[],mine:{},others:{},final:{},history:[],backupAt:0,backupHash:''};
+  }
+  function previewExchange(payloads,title,targetId=active()?.id) {
+    const target=db.epreuves.find(e=>e.id===targetId&&!e.archived)||null;
+    const ep=target||emptyImportEpreuve(title,payloads.some(p=>p.prep));
+    const preview=W.previewImport(ep,payloads,db.me);
+    if(preview.error) {toast(preview.error);return {error:preview.error,done:false,message:preview.error};}
+    pendingExchange={payloads,title,targetId:target?.id||null};
+    const r=preview.result;
+    openDialog(`<h2>Vérifier la réception</h2><p>Envoi : <b>${esc(title||'Sans titre')}</b> · ${[...new Set(payloads.map(p=>p.by))].map(esc).join(', ')}</p>
+      <label>Importer dans<select id="ceImportTarget"><option value="">Nouvelle épreuve</option>${db.epreuves.filter(e=>!e.archived).map(e=>`<option value="${esc(e.id)}"${target?.id===e.id?' selected':''}>${esc(e.title)}</option>`).join('')}</select></label>
+      ${target&&normName(title)!==normName(target.title)?'<p class="ce-warn">Le nom de l’épreuve diffère. Vérifie la destination avant de confirmer.</p>':''}
+      <p>${r.added||0} élèves ajoutés · ${r.updated||r.filled||0} fiches actualisées · ${r.older||0} anciennes fiches ignorées · ${r.kept||0} conflits conservés · ${r.locked||0} fiches verrouillées conservées.</p><p>${r.got}/${r.total} partie(s) du lot reçue(s) après cet import.</p>
+      <div class="ce-actions"><button type="button" class="ce-primary" data-act="confirm-exchange">Confirmer la réception</button><button value="close">Annuler</button></div>`);
+    return {done:false,pending:true,message:'Vérifie l’aperçu puis confirme la réception.'};
+  }
+  function commitExchange() {
+    if(!pendingExchange)return;
+    const {payloads,title,targetId}=pendingExchange;
+    const target=db.epreuves.find(e=>e.id===targetId);
+    if(targetId&&!target){toast('Épreuve introuvable.');return;}
+    const before=target||emptyImportEpreuve(title,payloads.some(p=>p.prep));
+    // Recalcule au moment de confirmer pour ne pas écraser les modifications ultérieures.
+    const preview=W.previewImport(before,payloads,db.me);
+    if(preview.error){toast(preview.error);return;}
+    if(target) db.epreuves[db.epreuves.indexOf(target)]=preview.ep;else db.epreuves.unshift(preview.ep);
+    db.activeId=preview.ep.id;pendingExchange=null;
+    log(preview.ep,{type:'receive',from:preview.result.by});
+    save();closeDialog();
+    tab=preview.result.prep?(preview.result.done?'eval':'share'):'cross';render();
+    openDialog(`<h2>Réception effectuée</h2><p>${esc(C.mergeMessage(preview.result))}</p><p>Consulte le tableau de bord pour voir les élèves encore attendus.</p><div class="ce-actions">${!preview.result.done?'<button type="button" data-act="continue-scan">Scanner le QR suivant</button>':''}<button type="button" data-act="go-dashboard">Tableau de bord</button><button value="close">Fermer</button></div>`);
+  }
+  function openReceipt(ep,name) {
+    try {
+      const r=W.receipt(ep,name,db.me),text='COEVAL-ACK:'+JSON.stringify(r);
+      openDialog(`<h2>Accusé de réception pour ${esc(name)}</h2><p>Ce QR confirme la version des notes reçues. Le collègue le scanne dans « Envoyer ».</p><div class="ce-qr">${qrImage(text)}</div><label>Code à transmettre<textarea readonly rows="3">${esc(text)}</textarea></label><p class="ce-hint">Identité déclarative, sans authentification.</p><button value="close">Fermer</button>`);
+    }catch(e){toast(e.message);}
+  }
+  function printFeedback(ep) {
+    const selected=ep.candidates.filter(c=>C.retainedFor(ep,c,db.me).validated);
+    if(!selected.length){toast('Valide une note avant de produire une fiche de retour.');return;}
+    const box=$('cePrint');
+    box.innerHTML=selected.map(c=>{
+      const r=C.retainedFor(ep,c,db.me),s=r.validated;
+      return `<section class="ce-sheet-print"><h2>${esc(c.name)} · ${esc(c.classroom)}</h2><p>${esc(ep.title)} · Retour d’évaluation</p><h3>Note validée : ${fmt(s.total)} / 20</h3>${r.stale?'<p>Attention : des évaluations ont changé depuis la validation. Cette fiche reprend la version validée.</p>':''}${recapTable(r.ev)}<h3>Retour du professeur</h3><p style="white-space:pre-wrap">${esc(c.feedback||'Aucun commentaire complémentaire.')}</p></section>`;
+    }).join('');
+    document.body.classList.add('ce-printing');window.addEventListener('afterprint',()=>{document.body.classList.remove('ce-printing');box.innerHTML='';},{once:true});window.print();
+  }
+
   /* =========================
      DIALOGUES
   ========================= */
@@ -1499,13 +1642,13 @@
       <p class="ce-hint">Export Pronote accepté tel quel : seuls le nom (colonne A) et la classe sont repris.</p>
       <label>…ou colle la liste (un candidat par ligne)<textarea id="ceNames" rows="8" placeholder="DUPONT Léa&#10;MARTIN Hugo"></textarea></label>
       <div class="ce-actions"><button type="button" class="ce-primary" data-act="add-names">Ajouter</button><button value="close">Fermer</button></div>
-      <ul class="ce-cand-edit">${ep.candidates.map(c => `<li><span>${esc(c.name)}${c.classroom ? ` <small>${esc(c.classroom)}</small>` : ""}</span><button type="button" class="ce-link" data-act="del-cand" data-id="${esc(c.id)}">Supprimer</button></li>`).join("")}</ul>
+      <ul class="ce-cand-edit">${ep.candidates.map(c => `<li><span>${esc(c.name)}${c.classroom ? ` <small>${esc(c.classroom)}</small>` : ""}</span><button type="button" data-act="edit-candidate" data-id="${esc(c.id)}">Modifier</button><button type="button" class="ce-link" data-act="del-cand" data-id="${esc(c.id)}">Mettre à la corbeille</button></li>`).join("")}</ul>
       <hr><div class="ce-choice"><span>Mon rôle</span>${Object.entries(ROLE_LABEL).map(([k, v]) => `<button type="button" class="${roleOf(ep) === k ? "on" : ""}" data-act="set-role" data-role="${k}" aria-pressed="${roleOf(ep) === k}">${v}</button>`).join("")}</div>
       <div class="ce-actions">
         <button type="button" class="ce-link" data-act="backup">💾 Sauvegarder l'épreuve</button>
         <button type="button" class="ce-link" data-act="demo">🧪 Classe d'exemple</button>
         <button type="button" class="ce-link" data-act="rename-epreuve">Renommer l'épreuve</button>
-        <button type="button" class="ce-link ce-danger" data-act="del-epreuve">Supprimer l'épreuve</button></div>`);
+        <button type="button" data-act="archive">Archiver l’épreuve</button><button type="button" data-act="manage">Archives et corbeille</button><button type="button" class="ce-link ce-danger" data-act="del-epreuve">Mettre l’épreuve à la corbeille</button></div>`);
   }
 
   /* =========================
@@ -1521,6 +1664,37 @@
     const act = el.dataset.act;
     const cand = ep && candById(ep, tab === "cross" ? crossId : currentId);
     switch (act) {
+      case "go-dashboard": closeDialog();tab='home';render();break;
+      case "dashboard-next":
+        if(el.dataset.target==='candidates') openCandidates(ep);
+        else {tab=el.dataset.target;ui.search='';ui.group='';evalFilter='all';currentId=W.candidates(ep).find(c=>W.eligible(c)&&!C.get(ep.mine,c.id)?.done)?.id||null;render();}break;
+      case "passage": ui.passage=!ui.passage;saveUi();render();if(ui.passage)scrollToSheet();break;
+      case "passage-help": openDialog(`<h2>Critères AFL1</h2>${GRID.filter(cr=>C.AFL1_IDS.includes(cr.id)).map(cr=>`<h3>${esc(cr.label)}</h3><ul>${C.descOf(cr,evalOf(ep,currentId).role).map((d,i)=>`<li><b>Degré ${i+1}</b> : ${esc(d)}</li>`).join('')}</ul>`).join('')}<button value="close">Fermer</button>`);break;
+      case "undo-input": undoInput(ep);break;
+      case "clear-filters": ui.search='';ui.group='';evalFilter='all';saveUi();render();break;
+      case "open-student": currentId=el.dataset.id;ui.search='';ui.group='';evalFilter='all';tab='eval';render();break;
+      case "readiness": openReadiness();break;
+      case "test-camera": testCamera();break;
+      case "check-offline": checkOffline();break;
+      case "edit-candidate": openCandidateEditor(ep,el.dataset.id);break;
+      case "save-candidate": {
+        try {const c=W.editCandidate(ep,el.dataset.id,{name:$('ceEditName').value,classroom:$('ceEditClass').value,group:$('ceEditGroup').value,order:$('ceEditOrder').value,situation:$('ceEditSituation').value});log(ep,{type:'candidate-edit',cand:c.id,candName:c.name});save();closeDialog();render();}
+        catch(e){$('ceEditError').textContent=e.message;}break;
+      }
+      case "confirm-csv": {
+        if(!pendingCsv||pendingCsv.ep!==ep?.id)return;
+        const rows=pendingCsv.rows.filter(r=>r.status==='new');const n=C.addCandidates(ep,rows.map(r=>r.name),rows.map(r=>r.classroom));pendingCsv=null;save();closeDialog();render();toast(n+' élèves ajoutés.');break;
+      }
+      case "confirm-exchange": commitExchange();break;
+      case "continue-scan": closeDialog();startScan();break;
+      case "receipt": openReceipt(ep,el.dataset.name);break;
+      case "manage": openManage();break;
+      case "archive": ep.archived=true;save();closeDialog();tab='home';render();openManage();break;
+      case "unarchive": {const e=db.epreuves.find(e=>e.id===el.dataset.id);if(e){e.archived=false;db.activeId=e.id;}save();closeDialog();tab='home';render();break;}
+      case "restore-ep": {const e=db.trash?.find(e=>e.id===el.dataset.id);if(e&&!db.epreuves.some(x=>x.id===e.id)){e.archived=false;db.epreuves.unshift(e);db.trash=db.trash.filter(x=>x!==e);db.activeId=e.id;save();closeDialog();tab='home';render();}break;}
+      case "restore-candidate": try{W.restoreCandidate(ep,el.dataset.id);save();render();openManage();}catch(e){toast(e.message);}break;
+      case "print-feedback": printFeedback(ep);break;
+      case "feedback": openDialog(`<h2>Retour aux élèves</h2><p>Commentaires destinés aux élèves, distincts des remarques échangées entre évaluateurs. L’impression porte sur les notes validées.</p>${ep.candidates.map(c=>`<label>${esc(c.name)}<textarea data-feedback="${esc(c.id)}" rows="2">${esc(c.feedback||'')}</textarea></label>`).join('')}<button value="close">Fermer</button>`);break;
       case "set-me": {
         const v = $("ceMeInput").value.trim();
         if (!v) { toast("Indique ton nom."); return; }
@@ -1536,14 +1710,16 @@
       case "pick": currentId = el.dataset.id; editChoices = null; render(); scrollToSheet(); break;
       case "edit-choices": editChoices = editChoices === currentId ? null : currentId; render(); break;
       case "step": {
-        const i = ep.candidates.findIndex(c => c.id === currentId) + Number(el.dataset.step);
-        if (ep.candidates[i]) { currentId = ep.candidates[i].id; editChoices = null; render(); scrollToSheet(); }
+        const list=viewCandidates(ep);
+        const i = list.findIndex(c => c.id === currentId) + Number(el.dataset.step);
+        if (list[i]) { currentId = list[i].id; editChoices = null; render(); scrollToSheet(); }
         break;
       }
       case "set": {
         const e = evalOf(ep, currentId);
+        const previous=C.clone(e);
         const field = el.dataset.field;
-        if (e.done || (e.pre && !e.pre.unlocked && e.pre.choices.includes(field))) return;
+        if (!W.eligible(cand) || e.done || (e.pre && !e.pre.unlocked && e.pre.choices.includes(field))) return;
         const value = e[field] === el.dataset.value ? "" : el.dataset.value;
         if (field === "role" && e.role && e.v.role != null && value !== e.role) {
           if (!confirm(`Le critère « Rôle » est déjà noté (${fmt(e.v.role)}) avec la grille « ${ROLES[e.role]} ».\nChanger de rôle conserve cette note, mais elle sera signalée à vérifier avec les nouveaux descripteurs. Continuer ?`)) return;
@@ -1551,7 +1727,7 @@
         }
         logEdit(ep, cand, e, CHOICE_FIELDS[field].label, CHOICE_FIELDS[field].map[e[field]] || "", CHOICE_FIELDS[field].map[value] || "");
         e[field] = value;
-        e.updatedAt = Date.now(); save(); render(); break;
+        e.updatedAt = Date.now(); rememberInput(ep,cand,previous,e); save(); render(); break;
       }
       case "deg": setValue(ep, el.dataset.crit, Number(el.dataset.deg), null); render(); break;
       case "val": setValue(ep, el.dataset.crit, Number(el.dataset.deg), Number(el.dataset.value)); render(); break;
@@ -1563,7 +1739,8 @@
         if (!e.initial) e.initial = snapshot(e);
         log(ep, {type:"eval-done", cand:cand.id, candName:cand.name, total:C.scores(e).total});
         save(); closeDialog();
-        const next = ep.candidates.slice(ep.candidates.indexOf(cand) + 1).concat(ep.candidates).find(c => !C.get(ep.mine, c.id)?.done);
+        const list=viewCandidates(ep);
+        const next = list.slice(list.indexOf(cand) + 1).concat(list).find(c => W.eligible(c) && !C.get(ep.mine, c.id)?.done);
         if (next) currentId = next.id;
         editChoices = null;
         render(); scrollToSheet();
@@ -1601,6 +1778,7 @@
       case "demo": {
         const old = db.epreuves.find(e => e.demo);
         if (old && !confirm("Une épreuve d'exemple existe déjà. La remplacer par une nouvelle (les essais faits dessus seront perdus) ?")) return;
+        if(!db.me) db.me="Évaluateur démo";
         const demo = window.CoEvalDemo.makeDemo(db.me);
         demo.role = "prof";
         demo.backupHash = C.contentHash(demo);
@@ -1629,12 +1807,18 @@
       case "scan": startScan(); break;
       case "paste": {
         const res = importText($("cePaste").value);
-        toast(res.message); render(); break;
+        if(!res.pending){toast(res.message); render();} break;
       }
       case "drop-other":
         if (confirm(`Retirer l'évaluation de ${el.dataset.name} ?`)) { delete ep.others[el.dataset.name]; save(); render(); }
         break;
       case "backup": if (ep) backup(ep); break;
+      case "backup-download": if(ep) backup(ep,true); break;
+      case "confirm-backup": {
+        const target=db.epreuves.find(e=>e.id===pendingBackup?.epId);
+        if(target){target.backupAt=pendingBackup.at;target.backupHash=pendingBackup.hash;save();}
+        pendingBackup=null;closeDialog();render();break;
+      }
       case "do-restore": doRestore(); break;
       case "filter": crossFilter = crossFilter === el.dataset.filter && el.dataset.filter !== "all" ? "all" : el.dataset.filter; render(); break;
       case "stats": crossView = "stats"; render(); window.scrollTo({top:0}); break;
@@ -1735,15 +1919,11 @@
       case "print-one": printSheets(ep, [cand]); break;
       case "print": window.print(); break;
       case "add-names": {
-        const n = C.addCandidates(ep, $("ceNames").value.split(/\r?\n/));
-        save(); toast(n + " candidat(s) ajouté(s)."); openCandidates(ep); render(); break;
+        openCsvPreview(ep, $("ceNames").value.split(/\r?\n/)); break;
       }
       case "del-cand":
-        if (confirm("Supprimer ce candidat et ses notes ?")) {
-          ep.candidates = ep.candidates.filter(c => c.id !== el.dataset.id);
-          delete ep.mine[el.dataset.id]; delete ep.final[el.dataset.id];
-          save(); openCandidates(ep); render();
-        }
+        W.trashCandidate(ep,el.dataset.id);
+        save();openCandidates(ep);render();toast('Élève placé dans la corbeille avec ses notes.');
         break;
       case "rename-epreuve": {
         const t = prompt("Nouveau nom :", ep.title);
@@ -1751,7 +1931,8 @@
         break;
       }
       case "del-epreuve":
-        if (confirm(`Supprimer définitivement « ${ep.title} » et toutes ses notes ?${unsaved(ep) ? "\n⚠️ Elle n'a pas été sauvegardée dans un fichier depuis les dernières modifications." : ""}`)) {
+        if (confirm(`Placer « ${ep.title} » dans la corbeille ? Tu pourras la restaurer depuis « Archives et corbeille ».`)) {
+          (db.trash ||= []).push(ep);
           db.epreuves = db.epreuves.filter(e => e.id !== ep.id);
           db.activeId = db.epreuves[0]?.id || null;
           save(); closeDialog(); render();
@@ -1765,6 +1946,8 @@
     if (el.classList?.contains("ce-slider")) { sliderCommit(el); return; }
     const ep = active();
     if (el.id === "ceEpreuve") { db.activeId = el.value; currentId = crossId = null; crossView = "table"; save(); render(); return; }
+    if (el.id === 'ceGroup') {ui.group=el.value;saveUi();render();return;}
+    if (el.id === 'ceImportTarget' && pendingExchange) {const p=pendingExchange;previewExchange(p.payloads,p.title,el.value);return;}
     if (el.id === "ceSort") { crossSort = el.value; render(); return; }
     if (el.id === "ceFile" && el.files[0]) { importFile(el.files[0]); el.value = ""; return; }
     if (el.id === "ceRestore" && el.files[0]) {
@@ -1779,8 +1962,7 @@
     if (el.id === "ceCsv" && el.files[0]) {
       readTextFile(el.files[0], text => {
         const {names, classes} = C.parseCSV(text);
-        const n = C.addCandidates(ep, names, classes);
-        save(); toast(`${n} élève(s) ajouté(s) sur ${names.length} lu(s).`); openCandidates(ep); render();
+        openCsvPreview(ep,names,classes);
       });
     }
   });
@@ -1788,6 +1970,10 @@
   document.addEventListener("input", ev => {
     const el = ev.target;
     if (el.classList?.contains("ce-slider")) { sliderPreview(el); return; }
+    if(el.id==='ceSearch') {
+      const start=el.selectionStart;ui.search=el.value;saveUi();render();$('ceSearch')?.focus();if($('ceSearch')) $('ceSearch').setSelectionRange(start,start);return;
+    }
+    if(el.dataset.feedback) {const c=candById(active(),el.dataset.feedback);if(c){c.feedback=el.value;c.organizationAt=Date.now();save();}return;}
     if (el.dataset.field === "comment" && tab === "eval") {
       const e = evalOf(active(), currentId);
       if (e.done) return;
@@ -1831,6 +2017,11 @@
   // Demande au navigateur de ne pas effacer les données de lui-même (Safari notamment).
   navigator.storage?.persist?.().catch(() => {});
 
+  $('ceDialog').addEventListener('close',()=>{stopTestCamera?.();stopTestCamera=null;});
+  const manage=document.createElement('button');manage.type='button';manage.textContent='Archives et corbeille';manage.dataset.act='manage';document.querySelector('.ce-bar').append(manage);
+  navigator.serviceWorker?.addEventListener('controllerchange',checkOffline);
+  if(navigator.serviceWorker) navigator.serviceWorker.ready.then(checkOffline);
+  window.addEventListener('online',checkOffline);
   window.CoEval = {core:C, get db() { return db; }, importText};
   render();
 })();
