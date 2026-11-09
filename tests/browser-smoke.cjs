@@ -8,10 +8,14 @@ const assert=require('node:assert/strict');
  const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage();
  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
  const act=a=>page.locator(`[data-act="${a}"]`).filter({visible:true}).first();
+ await context.addInitScript(()=>{if(!localStorage.getItem('coeval-ui')) localStorage.setItem('coeval-ui',JSON.stringify({input:'cases',desc:true}));});
  await page.goto('http://127.0.0.1:8000/');await act('demo').click();
  await page.locator('[data-tab="home"]').click();await page.getByRole('heading',{name:/EXEMPLE/}).waitFor();
  assert.equal(await page.locator('.ce-dashboard-grid>div').count(),3);
  await page.locator('[data-tab="eval"]').click();
+ assert.equal(await page.locator('.ce-slider').count(),6);
+ assert.equal(await page.locator('.ce-pt,[data-act="toggle-desc"],[data-act="toggle-input"]').count(),0);
+ assert.equal(await page.locator('.ce-degbox-desc:visible').count(),24);
  await page.locator('#ceSearch').fill('ROBERT');assert.equal(await page.locator('.ce-cand').count(),1);
  await page.locator('#ceSearch').fill('introuvable');assert.equal(await page.locator('.ce-sheet').count(),0);
  await act('clear-filters').click();await page.locator('#ceSearch').fill('ROBERT');
@@ -23,6 +27,11 @@ const assert=require('node:assert/strict');
  await page.locator('.ce-slider:not(:disabled)').first().focus();await page.keyboard.press('ArrowRight');await page.keyboard.press('Tab');
  await act('undo-input').click();
  assert.equal(await page.evaluate(()=>{let e=CoEval.db.epreuves.find(e=>e.id===CoEval.db.activeId);let c=e.candidates.find(c=>c.name.includes('ROBERT'));return JSON.stringify(e.mine[c.id].v);}),before);
+ // Descriptions stay above the sliders even on mobile in Passage mode.
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.locator('.ce-degbox-desc:visible').count(),24);
+ assert.ok(await page.locator('.ce-slide-crit').first().evaluate(el=>el.querySelector('.ce-degpts').getBoundingClientRect().bottom<=el.querySelector('.ce-slide').getBoundingClientRect().top));
+ await page.setViewportSize({width:1280,height:900});
  // Administration and reversible deletion.
  await page.locator('#ceCandidates').click();const n=await page.locator('.ce-cand-edit li').count();await page.locator('[data-act="del-cand"]').first().click();assert.equal(await page.locator('.ce-cand-edit li').count(),n-1);
  await page.locator('#ceDialog [data-act="manage"]').click();await act('restore-candidate').click();await page.locator('#ceDialog button[value="close"]').click();

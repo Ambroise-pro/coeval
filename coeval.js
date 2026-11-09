@@ -333,7 +333,7 @@
             <h2>${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</h2>
             <button type="button" data-act="step" data-step="1" aria-label="Candidat suivant" ${idx < 0 || idx === visible.length - 1 ? "disabled" : ""}>→</button>
           </div>
-          <div class="ce-actions"><button type="button" data-act="edit-candidate" data-id="${esc(cand.id)}">${W.SITUATIONS[cand.situation||'present']} · Modifier</button>${!prepScope?`<button type="button" data-act="toggle-input">${useSlider()?'Saisir avec des cases':'Saisir avec des curseurs'}</button><button type="button" data-act="toggle-desc" aria-pressed="${!!ui.desc}">${ui.desc?'Masquer':'Voir'} les descripteurs</button><button type="button" data-act="passage" aria-pressed="${!!ui.passage}">${ui.passage?'Quitter le mode Passage':'Mode Passage'}</button>${ui.passage?'<button type="button" data-act="passage-help">Consulter les critères</button>':''}`:''}<button type="button" data-act="undo-input"${lastInput?.ep===ep.id&&lastInput?.cand===cand.id&&lastInput.after===JSON.stringify(ev)?'':' disabled'}>Annuler la dernière saisie</button></div>
+          <div class="ce-actions"><button type="button" data-act="edit-candidate" data-id="${esc(cand.id)}">${W.SITUATIONS[cand.situation||'present']} · Modifier</button>${!prepScope?`<button type="button" data-act="passage" aria-pressed="${!!ui.passage}">${ui.passage?'Quitter le mode Passage':'Mode Passage'}</button>`:''}<button type="button" data-act="undo-input"${lastInput?.ep===ep.id&&lastInput?.cand===cand.id&&lastInput.after===JSON.stringify(ev)?'':' disabled'}>Annuler la dernière saisie</button></div>
           ${!W.eligible(cand)?'<p class="ce-warn">Situation particulière : les notes sont conservées. Réactive « À évaluer » pour reprendre le passage.</p>':''}
           ${lockBar}
           ${preBar}
@@ -371,17 +371,13 @@
   /* Curseur par critère : ses crans sont les points de chaque degré, degré après degré.
      Une valeur commune à deux degrés (ex. 0,25 en D1 et en D2) donne deux crans distincts.
      La note est enregistrée au relâchement ; pendant le glissement, seul l'affichage change. */
-  const useSlider = () => ui.input !== "cases" && !ui.desc;
-
-  /* Cases de degré : chacune contient ses points (un toucher fixe le degré et la note)
-     et, si demandé, le texte du critère pour ce degré. */
-  function degBoxes(crit, desc, deg, value, dis, showDesc, showPts = true) {
+  /* Les descriptions restent visibles au-dessus du curseur, sans boutons de points. */
+  function degBoxes(crit, desc, deg) {
     return `<div class="ce-degs ce-degpts">${crit.deg.map((range, i) => {
-      const d = i + 1, on = deg === d;
-      const name = crit.names ? crit.names[i] : (showDesc ? "Degré " : "D") + d;
-      const pts = C.stepsOf(range).map(x => `<button type="button" class="ce-pt${on && value === x ? " on" : ""}" data-act="val" data-crit="${crit.id}" data-deg="${d}" data-value="${x}" aria-pressed="${on && value === x}" aria-label="${esc(name)} : ${fmt(x)} point(s)"${dis}>${fmt(x)}</button>`).join("");
-      return `<div class="ce-degbox d${d}${on ? " on" : ""}" data-d="${d}"${desc[i] ? ` title="${esc(desc[i])}"` : ""}>
-        <b>${esc(name)}</b>${showDesc ? `<span class="ce-degbox-desc">${esc(desc[i])}</span>` : ""}${showPts ? `<div class="ce-pts">${pts}</div>` : ""}</div>`;
+      const d = i + 1;
+      const name = crit.names ? crit.names[i] : "Degré " + d;
+      return `<div class="ce-degbox d${d}${deg === d ? " on" : ""}" data-d="${d}">
+        <b>${esc(name)}</b><span class="ce-degbox-desc">${esc(desc[i])}</span></div>`;
     }).join("")}</div>`;
   }
 
@@ -413,7 +409,7 @@
     return `<div class="ce-crit ce-slide-crit${value != null ? " filled" : ""}" data-crit="${crit.id}">
       <div class="ce-crit-head"><b>${esc(crit.label)}</b><span><strong class="ce-slide-val">${cur ? esc(stepText(crit, cur)) : "à noter"}</strong> /${crit.max}</span></div>
       ${recheck}
-      ${degBoxes(crit, desc, deg, value, "", true, false)}
+      ${degBoxes(crit, desc, deg)}
       <div class="ce-slide${cur ? ` d${cur.d}` : " unset"}">
         <div class="ce-slide-track" style="background:${gradient}">${steps.map((st, k) => `<span class="ce-tick" style="left:${pos(k)}%"></span>`).join("")}</div>
         <div class="ce-slide-pts" aria-hidden="true">${steps.map((st, k) => `<span class="d${st.d}${k === idx ? " on" : ""}" data-k="${k}" style="left:${pos(k)}%">${fmt(st.v)}</span>`).join("")}</div>
@@ -490,21 +486,13 @@
       return `<div class="ce-crit"><div class="ce-crit-head"><b>${esc(crit.label)}</b><span>${value != null ? `<strong>${fmt(value)}</strong>` : "—"} /${crit.max}</span></div>
         <p class="ce-hint">Choisis d'abord le rôle AFL3 (partenaire ou juge) en haut de la fiche.</p></div>`;
     }
-    const dis = locked ? " disabled" : "";
-    if (useSlider()) return sliderHTML(crit, ev, value, deg, desc, recheck, locked);
-    const degs = degBoxes(crit, desc, deg, value, dis, ui.desc);
-    return `<div class="ce-crit${value != null ? " filled" : ""}">
-      <div class="ce-crit-head"><b>${esc(crit.label)}</b><span>${value != null ? `<strong>${fmt(value)}</strong>` : "—"} /${crit.max}</span></div>
-      ${recheck}
-      ${degs}
-      ${deg && !ui.desc ? `<p class="ce-desc">${esc(desc[deg - 1])}</p>` : ""}
-    </div>`;
+    return sliderHTML(crit, ev, value, deg, desc, recheck, locked);
   }
 
-  /* Boutons de degré : libellé et plage seulement, sauf si l'on a demandé les descripteurs. */
+  /* Harmonisation : les descriptions accompagnent toujours le choix du degré. */
   function degButtons(crit, desc, selected, act, dis) {
-    return `<div class="ce-degs${ui.desc ? "" : " compact"}">${crit.deg.map(([a, b], i) => `<button type="button" class="ce-deg d${i + 1}${selected === i + 1 ? " on" : ""}" data-act="${act}" data-crit="${crit.id}" data-deg="${i + 1}" aria-pressed="${selected === i + 1}"${desc[i] ? ` title="${esc(desc[i])}"` : ""}${dis}>
-      <b>${crit.names ? crit.names[i] : (ui.desc ? "Degré " : "D") + (i + 1)} <small>${a === b ? fmt(a) : fmt(a) + "–" + fmt(b)}</small></b>${ui.desc ? `<span>${esc(desc[i])}</span>` : ""}</button>`).join("")}</div>`;
+    return `<div class="ce-degs">${crit.deg.map(([a, b], i) => `<button type="button" class="ce-deg d${i + 1}${selected === i + 1 ? " on" : ""}" data-act="${act}" data-crit="${crit.id}" data-deg="${i + 1}" aria-pressed="${selected === i + 1}"${desc[i] ? ` title="${esc(desc[i])}"` : ""}${dis}>
+      <b>${crit.names ? crit.names[i] : "Degré " + (i + 1)} <small>${a === b ? fmt(a) : fmt(a) + "–" + fmt(b)}</small></b><span>${esc(desc[i])}</span></button>`).join("")}</div>`;
   }
 
   /* Critère évalué avant l'épreuve par le collègue : affichage compact, non modifiable ici. */
@@ -1540,7 +1528,7 @@
   async function checkOffline() {
     try {
       const registration=await navigator.serviceWorker?.getRegistration();
-      const cache=await caches.open('coeval-13');
+      const cache=await caches.open('coeval-14');
       const files=['./','index.html','coeval.css','coeval-core.js','coeval-demo.js','coeval-workflow.js','coeval.js','qrcode.js','jsQR.js','manifest.webmanifest'];
       offlineReady=!!registration?.active && (await Promise.all(files.map(f=>cache.match(f)))).every(Boolean);
     } catch(e) { offlineReady=false; }
@@ -1669,7 +1657,6 @@
         if(el.dataset.target==='candidates') openCandidates(ep);
         else {tab=el.dataset.target;ui.search='';ui.group='';evalFilter='all';currentId=W.candidates(ep).find(c=>W.eligible(c)&&!C.get(ep.mine,c.id)?.done)?.id||null;render();}break;
       case "passage": ui.passage=!ui.passage;saveUi();render();if(ui.passage)scrollToSheet();break;
-      case "passage-help": openDialog(`<h2>Critères AFL1</h2>${GRID.filter(cr=>C.AFL1_IDS.includes(cr.id)).map(cr=>`<h3>${esc(cr.label)}</h3><ul>${C.descOf(cr,evalOf(ep,currentId).role).map((d,i)=>`<li><b>Degré ${i+1}</b> : ${esc(d)}</li>`).join('')}</ul>`).join('')}<button value="close">Fermer</button>`);break;
       case "undo-input": undoInput(ep);break;
       case "clear-filters": ui.search='';ui.group='';evalFilter='all';saveUi();render();break;
       case "open-student": currentId=el.dataset.id;ui.search='';ui.group='';evalFilter='all';tab='eval';render();break;
@@ -1763,8 +1750,6 @@
       }
       case "qr-step": shareIndex += Number(el.dataset.step); render(); break;
       case "prep-step": prepIndex += Number(el.dataset.step); if (document.querySelector("#ceDialog .ce-prepshare")) openPrepShare(ep); else render(); break;
-      case "toggle-desc": ui.desc = !ui.desc; saveUi(); render(); break;
-      case "toggle-input": ui.input = useSlider() ? "cases" : "slider"; ui.desc = false; saveUi(); render(); break;
       case "prep-download": downloadJSON(`preparation_${slug(ep.title)}_${slug(db.me)}.json`, C.exportPrepFile(ep, db.me), ep.title); break;
       case "prep-copy": {
         const text = C.prepParts(ep, db.me).join("\n");

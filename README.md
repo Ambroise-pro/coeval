@@ -77,8 +77,9 @@ sont inclus dans les sauvegardes complètes, mais pas dans les échanges QR de n
 Pour les homonymes, utiliser des suffixes identiques sur les deux appareils.
 Un nom corrigé garde ses anciens noms pour reconnaître les échanges ultérieurs.
 
-Le **mode Passage** compacte les six critères AFL1 et garde l’identité de l’élève
-visible. Les descripteurs restent accessibles via **Consulter les critères**.
+Le **mode Passage** garde l’identité de l’élève visible. Les descriptions de chaque
+degré restent toujours affichées avec le curseur de notation en dessous, y compris
+en mode Passage. Il n’y a plus de mode de saisie par cases de points.
 **Annuler la dernière saisie** restaure la dernière note ou le dernier choix de
 la fiche tant qu’aucune autre modification de cette fiche n’est intervenue.
 
