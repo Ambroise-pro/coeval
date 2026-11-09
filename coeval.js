@@ -918,7 +918,7 @@
         <div class="ce-progress small"><div style="width:${queue.i / queue.ids.length * 100}%"></div></div>
         <button type="button" class="ce-link" data-act="queue-skip">Passer ›</button>
         <button type="button" class="ce-link" data-act="queue-stop">Arrêter</button></div>` : "";
-    main.innerHTML = `${queueBar}<section class="ce-card ce-hsum">
+    main.innerHTML = `${queueBar}<div class="ce-harmo"><div class="ce-harmo-side"><section class="ce-card ce-hsum">
       ${detailNav(ep, cand)}
       <p class="ce-sumline">${tag(h.status)} <span>${esc(THEMES[shownEv.theme] || "thème ?")} · ${esc(shownEv.split || "répartition ?")} · ${esc(ROLES[shownEv.role] || "rôle ?")}</span></p>
       <p class="ce-hint">${evaluators || "Aucune évaluation"}${gap != null ? ` · écart ${fmt(gap)}` : ""}</p>
@@ -929,7 +929,7 @@
       ${comments}
       ${initial}
       <button type="button" class="ce-link" data-act="detail-mode" data-mode="recap">📋 Récapitulatif</button>
-    </section>
+    </section></div><div class="ce-harmo-main">
     ${choicesCard}
     <section class="ce-card">${cards || `<p class="ce-ok-text">✓ Aucun désaccord sur les critères</p>`}
       <button type="button" class="ce-link" data-act="only-div" aria-pressed="${!onlyDivergent}">${onlyDivergent ? `Voir les ${GRID.length} critères` : "Voir seulement les désaccords"}</button>
@@ -943,7 +943,7 @@
             <button type="button" class="ce-link" data-act="reset-final">↺ Tout réinitialiser</button>
             <button type="button" class="ce-link" data-act="print-one">🖨️ Imprimer la fiche</button>
           </div>`}
-    </section>`;
+    </section></div></div>`;
   }
 
   /* Thème, répartition et rôle : côte à côte, à trancher s'ils diffèrent. */
