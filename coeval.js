@@ -270,7 +270,8 @@
     const ev = evalOf(ep, cand.id);
     const s = C.scores(ev);
     const idx = visible.indexOf(cand);
-    const locked = !!ev.done || !W.eligible(cand);
+    // « Terminer » ne verrouille que l'AFL1 : choix et AFL2/AFL3 restent modifiables dans « Préparer ».
+    const locked = (!!ev.done && !prepScope) || !W.eligible(cand);
     const dis = locked ? " disabled" : "";
     const pre = ev.pre && !ev.pre.unlocked ? ev.pre : null;
 
@@ -352,7 +353,7 @@
           <strong>${scopeProgress(ev, "prep").state === "complete" ? "✓ Préparation complète" : "Préparation " + scopeProgress(ev, "prep").filled + "/6"}</strong>
         </div>` : `<div class="ce-card">
           ${!locked && C.missingFields(ev).length?`<p class="ce-hint">À compléter : ${C.missingFields(ev).map(esc).join(', ')}.</p>`:''}
-          ${locked ? "" : `<button type="button" class="ce-primary ce-wide" data-act="finish">✔ Terminer mon évaluation</button>`}
+          ${locked ? "" : `<button type="button" class="ce-primary ce-wide" data-act="finish">✔ Terminer l'évaluation AFL1</button>`}
           <details class="ce-more"${ev.comment ? " open" : ""}><summary>💬 Remarque${ev.comment ? " (1)" : ""}</summary>
             <textarea data-field="comment" rows="2" aria-label="Remarque"${locked ? " readonly" : ""}>${esc(ev.comment)}</textarea></details>
           <button type="button" class="ce-link" data-act="single-qr">📱 QR de ce candidat</button>
@@ -513,7 +514,8 @@
   function setValue(ep, critId, deg, value) {
     const cand = candById(ep, currentId);
     const ev = evalOf(ep, currentId);
-    if (!W.eligible(cand) || ev.done || (ev.pre && !ev.pre.unlocked && ev.pre.crits.includes(critId))) return;
+    const afl1 = C.AFL1_IDS.includes(critId);
+    if (!W.eligible(cand) || (ev.done && afl1) || (ev.pre && !ev.pre.unlocked && ev.pre.crits.includes(critId))) return;
     const previous = C.clone(ev);
     const crit = C.critById(critId);
     const before = ev.v[critId] != null ? `D${C.degreeOf(crit, ev.v[critId], ev.d[critId])} ${fmt(ev.v[critId])}` : "";
@@ -524,7 +526,7 @@
     else if (ev.v[critId] == null || !C.inRange(crit, deg, ev.v[critId])) delete ev.v[critId];
     if (ev.recheck) delete ev.recheck[critId];
     const after = ev.v[critId] != null ? `D${deg} ${fmt(ev.v[critId])}` : "";
-    logEdit(ep, cand, ev, crit.label, before, after);
+    if (afl1) logEdit(ep, cand, ev, crit.label, before, after);
     ev.updatedAt = Date.now();
     rememberInput(ep, cand, previous, ev);
     save();
@@ -549,19 +551,20 @@
 
   function openFinish(ep, cand) {
     const ev = evalOf(ep, cand.id);
-    const missing = C.missingFields(ev);
+    // Seule l'AFL1 est exigée : l'AFL2, l'AFL3 et les choix peuvent être évalués plus tard.
+    const missing = C.AFL1_IDS.filter(id => ev.v[id] == null).map(id => C.critById(id).label);
     if (missing.length) {
-      openDialog(`<h2>Fiche incomplète</h2><p>Pour terminer l'évaluation de <b>${esc(cand.name)}</b>, il manque :</p>
+      openDialog(`<h2>AFL1 incomplète</h2><p>Pour terminer l'évaluation AFL1 de <b>${esc(cand.name)}</b>, il manque :</p>
         <ul>${missing.map(m => `<li>${esc(m)}</li>`).join("")}</ul>
-        ${roleOf(ep) === "prof" && missing.some(m => ["Thème", "Répartition AFL2/AFL3", "Rôle AFL3", ...C.PREP_CRITS.map(id => C.critById(id).label)].includes(m))
-          ? `<p class="ce-hint">Thème, répartition, rôle et AFL2/AFL3 se complètent dans « 1 · Préparer ».</p>` : ""}
-        <div class="ce-actions"><button value="close" class="ce-primary">Compléter la fiche</button></div>`);
+        <div class="ce-actions"><button value="close" class="ce-primary">Compléter l'AFL1</button></div>`);
       return;
     }
-    openDialog(`<h2>Terminer l'évaluation de ${esc(cand.name)} ?</h2>
+    const later = C.missingFields(ev).filter(m => !C.AFL1_IDS.some(id => C.critById(id).label === m));
+    openDialog(`<h2>Terminer l'évaluation AFL1 de ${esc(cand.name)} ?</h2>
       ${recapTable(ev)}
-      <p class="ce-hint">Après confirmation, la fiche est verrouillée et une copie de cette évaluation initiale est conservée.
-      Elle restera consultable après l'harmonisation.</p>
+      ${later.length ? `<p class="ce-hint">Encore à renseigner plus tard${roleOf(ep) === "prof" ? " dans « 1 · Préparer »" : ""} : ${esc(later.join(", "))}. Cela ne bloque pas la fin de l'AFL1.</p>` : ""}
+      <p class="ce-hint">Après confirmation, les notes AFL1 sont verrouillées et une copie en est conservée.
+      L'AFL2, l'AFL3 et les choix restent modifiables.</p>
       <div class="ce-actions"><button type="button" class="ce-primary" data-act="confirm-done">🔒 Confirmer et verrouiller</button><button value="close">Annuler</button></div>`);
   }
 
@@ -968,7 +971,11 @@
     const lastDecision = id => history.filter(e => e.type === "decision" && e.crit === id).pop();
     const origin = cr => {
       const st = h.crits[cr.id];
-      if (st.source === "jury") { const d = lastDecision(cr.id); return `⚖️ Décision du jury${d?.by ? ` (${esc(d.by)})` : ""}`; }
+      if (st.source === "jury") {
+        const d = lastDecision(cr.id);
+        const motif = st.decision?.motif;
+        return `⚖️ Décision du jury${d?.by ? ` (${esc(d.by)})` : ""}${motif ? `<br><i>« ${esc(motif)} »</i>` : ""}`;
+      }
       if (st.source === "moyenne") return st.gap ? "≈ Moyenne (même degré)" : "✓ Accord";
       if (st.source === "unique") return "Seule note";
       return st.mustDecide ? "⚠️ À trancher" : "—";
@@ -1001,7 +1008,7 @@
       const cr = e.crit ? C.critById(e.crit) : null;
       const what = cr ? ` · ${esc(cr.label)}` : e.field ? ` · ${esc(CHOICE_FIELDS[e.field]?.label || e.field)}` : "";
       let detail = "";
-      if (e.type === "decision") detail = ` : <b>${cr ? esc(C.degreeName(cr, e.deg)) : "D" + e.deg} · ${fmt(e.v)}</b>${e.initial ? `<br><small>Notes initiales — ${esc(e.initial)}</small>` : ""}`;
+      if (e.type === "decision") detail = ` : <b>${cr ? esc(C.degreeName(cr, e.deg)) : "D" + e.deg} · ${fmt(e.v)}</b>${e.initial ? `<br><small>Notes initiales — ${esc(e.initial)}</small>` : ""}${e.motif ? `<br><small>Motif : « ${esc(e.motif)} »</small>` : ""}`;
       else if (e.type === "choice" || e.type === "eval-edit") detail = ` : ${esc(e.from || "—")} → <b>${esc(e.to || "—")}</b>`;
       else if (e.type === "validate") detail = ` : <b>${fmt(e.total)} / 20</b>${e.bulk ? " (validation groupée des accords)" : ""}`;
       else if (e.type === "unvalidate" || e.type === "decision-reset") detail = e.from ? ` (était ${esc(e.from)})` : "";
@@ -1068,8 +1075,7 @@
     const mine = C.get(ep.mine, cand.id);
     let initial = "";
     if (mine?.initial) {
-      const changed = GRID.filter(cr => mine.initial.v[cr.id] !== mine.v[cr.id]).map(cr => cr.label);
-      ["theme", "split", "role"].forEach(f => { if (mine.initial[f] !== mine[f]) changed.unshift(CHOICE_FIELDS[f].label); });
+      const changed = GRID.filter(cr => C.AFL1_IDS.includes(cr.id) && mine.initial.v[cr.id] !== mine.v[cr.id]).map(cr => cr.label);
       initial = `<details class="ce-initial"><summary>Mon évaluation initiale (${fmt(C.scores(mine.initial).total)} / 20, terminée le ${when(mine.doneAt || mine.initial.at)})${changed.length ? " · modifiée depuis" : ""}</summary>
         ${changed.length ? `<p class="ce-warn">Modifié après la première validation : ${esc(changed.join(", "))}</p>` : `<p class="ce-hint">Inchangée depuis.</p>`}
         ${recapTable(mine.initial)}</details>`;
@@ -1192,6 +1198,8 @@
         <div class="ce-step"><h4>1 · Degré</h4>${degBtns}</div>
         ${step2}
         ${adopt ? `</details>` : ""}
+        ${st.source === "jury" ? `<label class="ce-motif">Motif de la décision <small>(facultatif)</small>
+          <input type="text" data-act="motif" data-crit="${cr.id}" value="${esc(st.decision?.motif || "")}" maxlength="200" placeholder="ex. posture compensatoire sur la 2e série"${dis}></label>` : ""}
         ${st.decision && !locked ? `<button type="button" class="ce-link" data-act="h-reset-crit" data-crit="${cr.id}">↺ Annuler la décision</button>` : ""}
       </div>
     </details>`;
@@ -1211,7 +1219,7 @@
     const range = cr.deg[deg - 1];
     let v = value;
     if (v == null) v = range[0] === range[1] ? range[0] : prev?.v != null && C.inRange(cr, deg, prev.v) ? prev.v : null;
-    f.crit[critId] = {deg, v};
+    f.crit[critId] = {deg, v, ...(prev?.motif ? {motif:prev.motif} : {})};
     f.updatedAt = Date.now();
     if (v != null && (prev?.v !== v || prev?.deg !== deg)) {
       const h = C.harmonize(C.entriesFor(ep, cand, db.me), null);
@@ -1373,17 +1381,17 @@
     "undo-input":"Saisie annulée", "candidate-edit":"Informations élève modifiées", "receive":"Évaluations reçues",
     "decision":"Décision sur un critère", "decision-reset":"Retour aux notes initiales", "choice":"Choix retenu",
     "harmonisation-reset":"Harmonisation réinitialisée", "validate":"Note validée", "unvalidate":"Validation annulée",
-    "eval-done":"Fiche terminée", "eval-reopen":"Fiche rouverte", "eval-edit":"Fiche modifiée après validation",
+    "eval-done":"AFL1 terminée", "eval-reopen":"AFL1 rouverte", "eval-edit":"AFL1 modifiée après validation",
     "prep-unlock":"Données de préparation déverrouillées"
   };
 
   function csvHistory(ep) {
-    const lines = [["Date", "Candidat", "Action", "Objet", "Évaluations initiales", "Degré retenu", "Note retenue", "Valeur précédente", "Enregistré par (déclaratif)"]];
+    const lines = [["Date", "Candidat", "Action", "Objet", "Évaluations initiales", "Degré retenu", "Note retenue", "Motif", "Valeur précédente", "Enregistré par (déclaratif)"]];
     ep.history.forEach(e => {
       const cr = e.crit ? C.critById(e.crit) : null;
       const object = cr ? cr.label : e.field ? (CHOICE_FIELDS[e.field]?.label || e.field) : "";
       lines.push([when(e.at), e.candName || candById(ep, e.cand)?.name || "", HISTORY_TYPES[e.type] || e.type, object, e.initial || "",
-        cr && e.deg ? C.degreeName(cr, e.deg) : "", e.v != null ? fmt(e.v) : e.total != null ? fmt(e.total) : e.to || "", e.from || "", e.by || ""]);
+        cr && e.deg ? C.degreeName(cr, e.deg) : "", e.v != null ? fmt(e.v) : e.total != null ? fmt(e.total) : e.to || "", e.motif || "", e.from || "", e.by || ""]);
     });
     csvDownload(`coeval_${slug(ep.title)}_historique.csv`, lines);
     toast("Historique exporté. Sans authentification, l'auteur indiqué est déclaratif.");
@@ -1610,13 +1618,33 @@
       openDialog(`<h2>Accusé de réception pour ${esc(name)}</h2><p>Ce QR confirme la version des notes reçues. Le collègue le scanne dans « Envoyer ».</p><div class="ce-qr">${qrImage(text)}</div><label>Code à transmettre<textarea readonly rows="3">${esc(text)}</textarea></label><p class="ce-hint">Identité déclarative, sans authentification.</p><button value="close">Fermer</button>`);
     }catch(e){toast(e.message);}
   }
+  /* Fiche de retour : pour chaque critère, le degré atteint, ce qu'il décrit et les points (sans détail du jury). */
+  function bilanTable(ev) {
+    const s = C.scores(ev);
+    const [w2, w3] = SPLITS[ev.split] || [];
+    let last = "";
+    const rows = GRID.map(cr => {
+      const v = ev.v[cr.id];
+      const d = v != null ? C.degreeOf(cr, v, ev.d?.[cr.id]) : 0;
+      const desc = C.descOf(cr, ev.role);
+      const head = cr.group !== last ? `<tr class="ce-group-row"><td colspan="4">${esc(cr.afl === "AFL1" ? "AFL1 · " + cr.group : cr.group)}</td></tr>` : "";
+      last = cr.group;
+      return `${head}<tr><td>${esc(cr.label)}</td><td>${d ? esc(C.degreeName(cr, d)) : "—"}</td><td>${d && desc ? esc(desc[d - 1]) : ""}</td><td class="num">${fmt(v)} / ${cr.max}</td></tr>`;
+    }).join("");
+    return `<p><b>Thème :</b> ${esc(THEMES[ev.theme] || "—")} · <b>Répartition AFL2/AFL3 :</b> ${esc(ev.split || "—")} · <b>Rôle :</b> ${esc(ROLES[ev.role] || "—")}</p>
+      <table class="ce-bilan"><thead><tr><th>Critère</th><th>Degré atteint</th><th>Ce que cela signifie</th><th class="num">Points</th></tr></thead><tbody>${rows}
+      <tr class="ce-sum"><td colspan="3">AFL1</td><td class="num">${fmt(s.afl1)} / 12</td></tr>
+      <tr class="ce-sum"><td colspan="3">AFL2</td><td class="num">${fmt(s.afl2)}${w2 ? " / " + w2 : ""}</td></tr>
+      <tr class="ce-sum"><td colspan="3">AFL3</td><td class="num">${fmt(s.afl3)}${w3 ? " / " + w3 : ""}</td></tr></tbody></table>`;
+  }
+
   function printFeedback(ep) {
     const selected=ep.candidates.filter(c=>C.retainedFor(ep,c,db.me).validated);
     if(!selected.length){toast('Valide une note avant de produire une fiche de retour.');return;}
     const box=$('cePrint');
     box.innerHTML=selected.map(c=>{
       const r=C.retainedFor(ep,c,db.me),s=r.validated;
-      return `<section class="ce-sheet-print"><h2>${esc(c.name)} · ${esc(c.classroom)}</h2><p>${esc(ep.title)} · Retour d’évaluation</p><h3>Note validée : ${fmt(s.total)} / 20</h3>${r.stale?'<p>Attention : des évaluations ont changé depuis la validation. Cette fiche reprend la version validée.</p>':''}${recapTable(r.ev)}<h3>Retour du professeur</h3><p style="white-space:pre-wrap">${esc(c.feedback||'Aucun commentaire complémentaire.')}</p></section>`;
+      return `<section class="ce-sheet-print"><h2>${esc(c.name)} · ${esc(c.classroom)}</h2><p>${esc(ep.title)} · Retour d’évaluation</p><h3>Note validée : ${fmt(s.total)} / 20</h3>${r.stale?'<p>Attention : des évaluations ont changé depuis la validation. Cette fiche reprend la version validée.</p>':''}${bilanTable(r.ev)}<h3>Retour du professeur</h3><p style="white-space:pre-wrap">${esc(c.feedback||'Aucun commentaire complémentaire.')}</p></section>`;
     }).join('');
     document.body.classList.add('ce-printing');window.addEventListener('afterprint',()=>{document.body.classList.remove('ce-printing');box.innerHTML='';},{once:true});window.print();
   }
@@ -1707,13 +1735,12 @@
         const e = evalOf(ep, currentId);
         const previous=C.clone(e);
         const field = el.dataset.field;
-        if (!W.eligible(cand) || e.done || (e.pre && !e.pre.unlocked && e.pre.choices.includes(field))) return;
+        if (!W.eligible(cand) || (e.pre && !e.pre.unlocked && e.pre.choices.includes(field))) return;
         const value = e[field] === el.dataset.value ? "" : el.dataset.value;
         if (field === "role" && e.role && e.v.role != null && value !== e.role) {
           if (!confirm(`Le critère « Rôle » est déjà noté (${fmt(e.v.role)}) avec la grille « ${ROLES[e.role]} ».\nChanger de rôle conserve cette note, mais elle sera signalée à vérifier avec les nouveaux descripteurs. Continuer ?`)) return;
           e.recheck = {...(e.recheck || {}), role:true};
         }
-        logEdit(ep, cand, e, CHOICE_FIELDS[field].label, CHOICE_FIELDS[field].map[e[field]] || "", CHOICE_FIELDS[field].map[value] || "");
         e[field] = value;
         e.updatedAt = Date.now(); rememberInput(ep,cand,previous,e); save(); render(); break;
       }
@@ -1732,7 +1759,7 @@
         if (next) currentId = next.id;
         editChoices = null;
         render(); scrollToSheet();
-        toast(`🔒 Évaluation de ${cand.name} terminée.${next ? ` Suivant : ${next.name}.` : " Toutes tes fiches sont terminées."}`);
+        toast(`🔒 AFL1 de ${cand.name} terminée.${next ? ` Suivant : ${next.name}.` : " Toutes tes fiches AFL1 sont terminées."}`);
         break;
       }
       case "reopen": {
@@ -1931,6 +1958,20 @@
     const el = ev.target;
     if (el.classList?.contains("ce-slider")) { sliderCommit(el); return; }
     const ep = active();
+    // Motif d'une décision du jury : rangé avec la décision et dans l'entrée d'historique correspondante.
+    if (el.dataset?.act === "motif" && ep && crossId) {
+      const f = finalStore(ep, crossId);
+      const d = f.crit[el.dataset.crit];
+      if (!d) return;
+      const motif = el.value.trim();
+      if (motif) d.motif = motif; else delete d.motif;
+      f.updatedAt = Date.now();
+      const entry = (ep.history || []).filter(h => h.type === "decision" && h.cand === crossId && h.crit === el.dataset.crit).pop();
+      if (entry) { if (motif) entry.motif = motif; else delete entry.motif; }
+      save();
+      toast(motif ? "Motif enregistré." : "Motif retiré.");
+      return;
+    }
     if (el.id === "ceEpreuve") { db.activeId = el.value; currentId = crossId = null; crossView = "table"; save(); render(); return; }
     if (el.id === 'ceGroup') {ui.group=el.value;saveUi();render();return;}
     if (el.id === 'ceImportTarget' && pendingExchange) {const p=pendingExchange;previewExchange(p.payloads,p.title,el.value);return;}

@@ -10,7 +10,9 @@ Au démarrage, chacun choisit son rôle ; les deux parcours sont distincts.
    AFL2/AFL3, rôle et critères AFL2/AFL3. « Transmettre au co-évaluateur » affiche les QR (ou fichier, code) :
    la classe et ces données, **jamais l'AFL1**.
 2. **Évaluer** (jour de l'épreuve) : l'AFL1 seulement (curseur par critère, cases de degré avec les critères au-dessus).
-   « Terminer » vérifie la fiche, la verrouille et garde la version initiale.
+   « Terminer l'évaluation AFL1 » n'exige que les six critères AFL1 : l'AFL2, l'AFL3 et les choix
+   peuvent être renseignés plus tard dans « Préparer ». Seules les notes AFL1 sont alors verrouillées
+   (version initiale conservée, modifications ultérieures tracées).
 3. **Croiser** : recevoir l'évaluation du co-évaluateur (QR, fichier, code), puis tableau de bord, validation groupée
    des accords, harmonisation enchaînée (degré puis note, ou « Retenir » la note d'un évaluateur en un toucher),
    récapitulatif élève par élève, procès-verbal, exports, sauvegarde.
@@ -100,6 +102,9 @@ la fiche tant qu’aucune autre modification de cette fiche n’est intervenue.
 - **Archiver** retire une épreuve de la liste active. **Archives et corbeille**
   permet de la rouvrir. Remplacer une épreuve par une sauvegarde conserve l’état
   précédent dans la corbeille.
+
+Quand le jury tranche un critère, un **motif** facultatif peut être noté sous la décision ;
+il apparaît dans le récapitulatif de l'élève, la fiche imprimée et l'export de l'historique.
 
 ## Réception et retour aux élèves
 

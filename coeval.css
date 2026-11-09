@@ -589,3 +589,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 @media(max-width:699px){
   .ce-slide-pts span:not(.on):not(:first-child):not(:last-child){display:none}
 }
+
+/* Motif d'une décision du jury */
+.ce-motif{display:block;margin-top:10px;font-weight:600;font-size:14px}
+.ce-motif small{color:var(--ce-muted);font-weight:500}
+.ce-motif input{margin-top:4px}
+/* Fiche de retour : degré atteint et sa signification */
+.ce-bilan td:nth-child(3){font-size:11px;color:#334155}
+/* Onglets : jamais plus larges que l'écran (4 onglets à 390 px) */
+.ce-tabs button{min-width:0;overflow-wrap:anywhere}
+@media (max-width:699px){ .ce-tabs{gap:4px} .ce-tabs button{padding:10px 4px;font-size:14px} }
