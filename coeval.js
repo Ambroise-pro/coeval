@@ -29,6 +29,7 @@
   let crossSort = "name";
   let onlyDivergent = true;
   let shareMode = null;
+  let queue = null;   // harmonisation enchaînée : {ids, i, done}
   let evalFilter = "all";
   const openCrits = {};
   let stopCamera = null;
@@ -315,13 +316,18 @@
         <p class="ce-hint">Choisis d'abord le rôle AFL3 (partenaire ou juge) en haut de la fiche.</p></div>`;
     }
     const dis = locked ? " disabled" : "";
-    const degs = degButtons(crit, desc, deg, "deg", dis);
-    const chips = deg ? C.stepsOf(crit.deg[deg - 1]).map(x => `<button type="button" class="${value === x ? "on" : ""}" data-act="val" data-crit="${crit.id}" data-deg="${deg}" data-value="${x}" aria-pressed="${value === x}"${dis}>${fmt(x)}</button>`).join("") : "";
+    // Chaque degré contient ses points : un seul toucher fixe le degré et la note.
+    const degs = `<div class="ce-degs ce-degpts">${crit.deg.map((range, i) => {
+      const d = i + 1, on = deg === d;
+      const name = crit.names ? crit.names[i] : (ui.desc ? "Degré " : "D") + d;
+      const pts = C.stepsOf(range).map(x => `<button type="button" class="ce-pt${on && value === x ? " on" : ""}" data-act="val" data-crit="${crit.id}" data-deg="${d}" data-value="${x}" aria-pressed="${on && value === x}" aria-label="${esc(name)} : ${fmt(x)} point(s)"${dis}>${fmt(x)}</button>`).join("");
+      return `<div class="ce-degbox d${d}${on ? " on" : ""}"${desc[i] ? ` title="${esc(desc[i])}"` : ""}>
+        <b>${esc(name)}</b>${ui.desc ? `<span class="ce-degbox-desc">${esc(desc[i])}</span>` : ""}<div class="ce-pts">${pts}</div></div>`;
+    }).join("")}</div>`;
     return `<div class="ce-crit${value != null ? " filled" : ""}">
       <div class="ce-crit-head"><b>${esc(crit.label)}</b><span>${value != null ? `<strong>${fmt(value)}</strong>` : "—"} /${crit.max}</span></div>
       ${recheck}
       ${degs}
-      ${deg && chips ? `<div class="ce-chips">${chips}</div>` : ""}
       ${deg && !ui.desc ? `<p class="ce-desc">${esc(desc[deg - 1])}</p>` : ""}
     </div>`;
   }
@@ -680,6 +686,7 @@
     const validated = count(x => x.r.validated);
     const todo = count(x => C.needsAction(x.r));
     const majors = count(x => st(x) === "major");
+    const ready = C.accordReady(ep, db.me);
     const chip = (filter, num, label, tone) => num ? `<button type="button" class="ce-fchip ${tone}${crossFilter === filter ? " on" : ""}" data-act="filter" data-filter="${filter}" aria-pressed="${crossFilter === filter}">
       <b>${num}</b> ${label}</button>` : "";
     const filters = {
@@ -719,10 +726,13 @@
       <div class="ce-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${n}" aria-valuenow="${validated}">
         <div style="width:${n ? validated / n * 100 : 0}%"></div></div>
       ${names.length < 2 ? `<p class="ce-warn">Rien reçu du collègue : onglet « Échanger ».</p>` : ""}
-      <div class="ce-actions">
-        ${todo ? `<button type="button" class="${crossFilter === "todo" ? "ce-primary" : ""}" data-act="filter" data-filter="todo">⚠️ À harmoniser (${todo})</button>` : ""}
+      <div class="ce-actions ce-cross-actions">
+        ${todo ? `<button type="button" class="ce-primary" data-act="queue-start">▶ Harmoniser les ${todo} cas</button>` : ""}
+        ${ready.length ? `<button type="button" data-act="bulk-accords">✅ Valider les ${ready.length} accord(s)</button>` : ""}
+        ${validated ? `<button type="button" data-act="pv">📄 Procès-verbal</button>` : ""}
       </div>
       <div class="ce-fchips">
+        ${chip("todo", todo, "⚠️ À harmoniser", "bad")}
         ${chip("degree", count(filters.degree), majors ? `≠ Degré (‼ ${majors})` : "≠ Degré", "bad")}
         ${chip("choices", count(filters.choices), "⇄ Choix", "bad")}
         ${chip("points", count(x => st(x) === "points"), "≈ Écart", "mid")}
@@ -740,6 +750,7 @@
           <button type="button" data-act="csv-detail">⬇️ CSV détaillé (degrés)</button>
           <button type="button" data-act="csv-history">⬇️ Historique des décisions</button>
           <button type="button" data-act="print-sheets">🖨️ Fiches par candidat</button>
+          <button type="button" data-act="pv">📄 Procès-verbal</button>
           <button type="button" data-act="print">🖨️ Ce tableau</button>
           <label class="ce-inline">Ordre <select id="ceSort"><option value="name"${crossSort === "name" ? " selected" : ""}>alphabétique</option><option value="priority"${crossSort === "priority" ? " selected" : ""}>par priorité</option></select></label>
         </div>
@@ -790,7 +801,13 @@
         ${recapTable(mine.initial)}</details>`;
     }
 
-    main.innerHTML = `<section class="ce-card ce-hsum">
+    const inQueue = queue && queue.ids[queue.i] === cand.id;
+    const queueBar = inQueue ? `<div class="ce-queue">
+        <span>▶ Harmonisation <b>${queue.i + 1}/${queue.ids.length}</b></span>
+        <div class="ce-progress small"><div style="width:${queue.i / queue.ids.length * 100}%"></div></div>
+        <button type="button" class="ce-link" data-act="queue-skip">Passer ›</button>
+        <button type="button" class="ce-link" data-act="queue-stop">Arrêter</button></div>` : "";
+    main.innerHTML = `${queueBar}<section class="ce-card ce-hsum">
       <div class="ce-nav">
         <button type="button" data-act="cross-back">← Tableau</button>
         <button type="button" data-act="cross-step" data-step="-1" aria-label="Candidat précédent" ${idx === 0 ? "disabled" : ""}>←</button>
@@ -814,7 +831,7 @@
       ${locked
         ? `<div class="ce-actions"><button type="button" data-act="unvalidate">✏️ Modifier la note validée</button><button type="button" data-act="print-one">🖨️ Imprimer la fiche</button></div>`
         : `${h.blockers.length ? `<p class="ce-warn">Avant de valider :</p><ul class="ce-blockers">${h.blockers.map(b => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}
-          <button type="button" class="ce-primary ce-wide" data-act="validate"${h.blockers.length ? " disabled" : ""}>✅ Valider la note</button>
+          <button type="button" class="ce-primary ce-wide" data-act="validate"${h.blockers.length ? " disabled" : ""}>✅ Valider la note${inQueue && queue.i < queue.ids.length - 1 ? " et passer au suivant" : ""}</button>
           <div class="ce-actions">
             <button type="button" class="ce-link" data-act="reset-final">↺ Tout réinitialiser</button>
             <button type="button" class="ce-link" data-act="print-one">🖨️ Imprimer la fiche</button>
@@ -853,14 +870,25 @@
     const sourceLabel = {jury:"décision du jury", moyenne:"moyenne", unique:"seule note"}[st.source] || "";
     const retained = st.value != null ? `<b>${fmt(st.value)}</b> <small>${sourceLabel}</small>` : st.mustDecide ? `<b class="ce-todo">à trancher</b>` : "—";
 
-    // Étape 1 : degrés de chacun et leurs descripteurs, côte à côte.
+    // Notes de chacun, côte à côte avec leur descripteur. En cas de désaccord, toucher une carte
+    // retient cette note (degré et points) : le cas le plus courant se tranche en un geste.
+    const adopt = st.divergent;
+    const picked = (d, v) => st.source === "jury" && st.value === v && st.deg === d;
     const compare = entries.map((x, i) => {
       const m = st.marks[i];
       if (!m) return `<div class="ce-cmp"><b>${esc(x.name)}</b><p class="ce-hint">Pas de note.</p></div>`;
       const desc = C.descOf(cr, x.ev.role);
-      return `<div class="ce-cmp d${m.d}"><b>${esc(x.name)}</b> ${dot(cr, m.d)} <span>${fmt(m.v)} pt</span>
-        <p>${esc(desc ? desc[m.d - 1] : "")}</p>${cr.descByRole && x.ev.role ? `<small>Grille « ${esc(ROLES[x.ev.role])} »</small>` : ""}</div>`;
+      const inner = `<span class="ce-adopt-head"><b>${esc(x.name)}</b> ${dot(cr, m.d)} <span>${fmt(m.v)} pt</span></span>
+        <p>${esc(desc ? desc[m.d - 1] : "")}</p>${cr.descByRole && x.ev.role ? `<small>Grille « ${esc(ROLES[x.ev.role])} »</small>` : ""}`;
+      if (!adopt) return `<div class="ce-cmp d${m.d}">${inner}</div>`;
+      const on = picked(m.d, m.v);
+      return `<button type="button" class="ce-cmp ce-adopt d${m.d}${on ? " on" : ""}" data-act="h-val" data-crit="${cr.id}" data-deg="${m.d}" data-value="${m.v}" aria-pressed="${on}"${dis}>
+        ${inner}<span class="ce-adopt-cta">${on ? "✓ Retenu" : `Retenir ${fmt(m.v)}`}</span></button>`;
     }).join("");
+    const meanAdopt = adopt && st.status === "points" && !st.marks.some(m => m && m.v === st.mean)
+      ? `<button type="button" class="ce-cmp ce-adopt mean${picked(st.commonDeg, st.mean) ? " on" : ""}" data-act="h-val" data-crit="${cr.id}" data-deg="${st.commonDeg}" data-value="${st.mean}" aria-pressed="${picked(st.commonDeg, st.mean)}"${dis}>
+          <span class="ce-adopt-head"><b>Moyenne</b> ${dot(cr, st.commonDeg)} <span>${fmt(st.mean)} pt</span></span><span class="ce-adopt-cta">${picked(st.commonDeg, st.mean) ? "✓ Retenu" : `Retenir ${fmt(st.mean)}`}</span></button>` : "";
+    const custom = st.source === "jury" && !st.marks.some(m => m && picked(m.d, m.v)) && !picked(st.commonDeg, st.mean);
     const roleWarn = cr.id === "role" && h.ev.role
       ? entries.filter(x => x.ev?.v?.role != null && x.ev.role && x.ev.role !== h.ev.role).map(x => x.name) : [];
     const desc = C.descOf(cr, h.ev.role);
@@ -888,12 +916,12 @@
         <span class="ce-retained">Retenu : ${retained}</span>
       </summary>
       <div class="ce-hcard-body">
-        <div class="ce-step"><h4>1 · Degré</h4>
-          <div class="ce-cmps">${compare}</div>
-          ${roleWarn.length ? `<p class="ce-warn">⚠️ ${esc(roleWarn.join(", "))} : noté avec l'autre grille de rôle.</p>` : ""}
-          ${degBtns}
-        </div>
+        <div class="ce-cmps">${compare}${meanAdopt}</div>
+        ${roleWarn.length ? `<p class="ce-warn">⚠️ ${esc(roleWarn.join(", "))} : noté avec l'autre grille de rôle.</p>` : ""}
+        ${adopt ? `<details class="ce-more ce-other"${custom ? " open" : ""}><summary>Autre note (degré, puis points)</summary>` : ""}
+        <div class="ce-step"><h4>1 · Degré</h4>${degBtns}</div>
         ${step2}
+        ${adopt ? `</details>` : ""}
         ${st.decision && !locked ? `<button type="button" class="ce-link" data-act="h-reset-crit" data-crit="${cr.id}">↺ Annuler la décision</button>` : ""}
       </div>
     </details>`;
@@ -1141,6 +1169,65 @@
     </section>`;
   }
 
+  /* Procès-verbal du jury : notes retenues de toute l'épreuve, à signer. */
+  function pvHTML(ep) {
+    const names = [db.me, ...Object.keys(ep.others)];
+    const items = ep.candidates.map(c => ({c, r:C.retainedFor(ep, c, db.me)}));
+    const validated = items.filter(x => x.r.validated && x.r.total != null);
+    const missing = items.length - validated.length;
+    const decided = items.reduce((n, x) => n + x.r.h.treated, 0);
+    const mean = validated.length ? validated.reduce((s, x) => s + x.r.total, 0) / validated.length : null;
+    const today = new Date().toLocaleDateString("fr-FR", {dateStyle:"long"});
+    const rows = items.map(({c, r}) => `<tr><td>${esc(c.name)}</td><td>${esc(c.classroom)}</td><td>${esc(THEMES[r.ev.theme] || "—")}</td>
+      <td>${esc(r.ev.split || "—")}</td><td>${esc(ROLES[r.ev.role] || "—")}</td>
+      <td class="num">${r.validated ? `<b>${fmt(r.total)}</b>` : "<i>non validée</i>"}</td>
+      <td class="num">${r.h.treated || ""}</td><td>${r.validated ? when(r.validated.at) : ""}</td></tr>`).join("");
+    return `<section class="ce-pv">
+      <h1>Procès-verbal de co-évaluation</h1>
+      <p><b>${esc(ep.title)}</b> · Baccalauréat EPS · Musculation (CA5)</p>
+      <p>Jury : ${names.map(esc).join(", ")} · édité le ${today}</p>
+      <p class="ce-pv-summary">${items.length} candidat(s) · <b>${validated.length} note(s) validée(s)</b>${missing ? ` · <b>${missing} sans note validée</b>` : ""}
+        · ${decided} désaccord(s) tranché(s) par le jury${mean != null ? ` · moyenne des notes validées : ${fmt(Math.round(mean * 100) / 100)} / 20` : ""}</p>
+      <table><thead><tr><th>Candidat</th><th>Classe</th><th>Thème</th><th>AFL2/AFL3</th><th>Rôle AFL3</th><th class="num">Note /20</th><th class="num">Désaccords tranchés</th><th>Validée le</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      <p class="ce-pv-note">Notes harmonisées critère par critère : en cas de désaccord de degré, le degré puis la note ont été décidés explicitement par le jury.
+        Le détail des décisions figure dans l'historique de l'épreuve (export CSV). Identité des auteurs déclarative (sans authentification).</p>
+      <p>Fait à ............................................ le ............................................</p>
+      <div class="ce-signs">${names.map(n => `<div>${esc(n)}<span></span></div>`).join("")}</div>
+    </section>`;
+  }
+
+  function printPV(ep) {
+    const box = $("cePrint");
+    box.innerHTML = pvHTML(ep);
+    document.body.classList.add("ce-printing");
+    window.addEventListener("afterprint", () => { document.body.classList.remove("ce-printing"); box.innerHTML = ""; }, {once:true});
+    window.print();
+  }
+
+  function openBulk(ep) {
+    const ready = C.accordReady(ep, db.me);
+    if (!ready.length) { toast("Aucun accord à valider."); return; }
+    openDialog(`<h2>Valider ${ready.length} accord(s) ?</h2>
+      <p class="ce-hint">Mêmes degrés et moins de 0,5 point d'écart sur chaque critère, mêmes choix : la note retenue est la moyenne au ¼ de point.</p>
+      <div class="ce-table"><table><thead><tr><th>Candidat</th><th class="num">Note retenue</th></tr></thead>
+        <tbody>${ready.map(x => `<tr><td>${esc(x.cand.name)}</td><td class="num"><b>${fmt(x.r.h.scores.total)}</b></td></tr>`).join("")}</tbody></table></div>
+      <p class="ce-hint">Chaque validation est inscrite dans l'historique au nom de ${esc(db.me)} et reste modifiable.</p>
+      <div class="ce-actions"><button type="button" class="ce-primary" data-act="confirm-bulk">✅ Valider les ${ready.length}</button><button value="close">Annuler</button></div>`);
+  }
+
+  /* Passe au candidat suivant de la file (en sautant ceux validés entre-temps). */
+  function queueNext(ep) {
+    queue.i++;
+    while (queue.i < queue.ids.length && C.get(ep.final, queue.ids[queue.i])?.validated) queue.i++;
+    if (queue.i >= queue.ids.length) {
+      const n = queue.done;
+      queue = null; crossId = null;
+      toast(`✓ Harmonisation terminée${n ? ` : ${n} note(s) validée(s)` : ""}.`);
+    } else crossId = queue.ids[queue.i];
+    nextCrit.last = null;
+  }
+
   function printSheets(ep, cands) {
     const box = $("cePrint");
     box.innerHTML = cands.map(c => sheetHTML(ep, c)).join("");
@@ -1294,10 +1381,33 @@
       case "stats": crossView = "stats"; render(); window.scrollTo({top:0}); break;
       case "stats-back": crossView = "table"; render(); break;
       case "cross-open": crossId = el.dataset.id; render(); window.scrollTo({top:0}); break;
-      case "cross-back": crossId = null; render(); break;
+      case "cross-back": crossId = null; queue = null; render(); break;
+      case "queue-start": {
+        const ids = C.harmonizeQueue(ep, db.me);
+        if (!ids.length) { toast("Rien à harmoniser ✓"); return; }
+        queue = {ids, i:0, done:0};
+        crossId = ids[0]; nextCrit.last = null;
+        render(); window.scrollTo({top:0}); break;
+      }
+      case "queue-skip": queueNext(ep); render(); window.scrollTo({top:0}); break;
+      case "queue-stop": queue = null; crossId = null; render(); break;
+      case "bulk-accords": openBulk(ep); break;
+      case "confirm-bulk": {
+        const ready = C.accordReady(ep, db.me);
+        ready.forEach(({cand: c, r}) => {
+          const f = finalStore(ep, c.id);
+          f.validated = C.makeValidation(r.h, db.me);
+          f.updatedAt = Date.now();
+          log(ep, {type:"validate", cand:c.id, candName:c.name, total:r.h.scores.total, bulk:true});
+        });
+        save(); closeDialog(); render();
+        toast(`✅ ${ready.length} accord(s) validé(s).`);
+        break;
+      }
+      case "pv": printPV(ep); break;
       case "cross-step": {
         const i = ep.candidates.findIndex(c => c.id === crossId) + Number(el.dataset.step);
-        if (ep.candidates[i]) { crossId = ep.candidates[i].id; nextCrit.last = null; render(); window.scrollTo({top:0}); }
+        if (ep.candidates[i]) { crossId = ep.candidates[i].id; queue = null; nextCrit.last = null; render(); window.scrollTo({top:0}); }
         break;
       }
       case "only-div": onlyDivergent = !onlyDivergent; render(); break;
@@ -1330,8 +1440,13 @@
         f.validated = C.makeValidation(h, db.me);
         f.updatedAt = Date.now();
         log(ep, {type:"validate", cand:cand.id, candName:cand.name, total:h.scores.total});
-        save(); closeDialog(); render(); window.scrollTo({top:0});
-        toast(`✅ Note de ${cand.name} validée : ${fmt(h.scores.total)} / 20.`);
+        save(); closeDialog();
+        if (queue && queue.ids[queue.i] === cand.id) {
+          queue.done++;
+          queueNext(ep);
+          if (queue) toast(`✅ ${cand.name} : ${fmt(h.scores.total)} / 20 · suivant : ${candById(ep, crossId).name}`);
+        } else toast(`✅ Note de ${cand.name} validée : ${fmt(h.scores.total)} / 20.`);
+        render(); window.scrollTo({top:0});
         break;
       }
       case "unvalidate": {

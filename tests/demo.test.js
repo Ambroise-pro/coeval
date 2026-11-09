@@ -25,3 +25,16 @@ test("liste CSV d'exemple lisible comme un export Pronote", () => {
   assert.equal(r.names.length, 28);
   assert.ok(r.classes.every(c => c === "TG2"));
 });
+
+test("croisement : accords validables d'un coup et file d'harmonisation par priorité", () => {
+  const ep = D.makeDemo("Alice", Date.UTC(2026, 10, 9, 12));
+  const ready = C.accordReady(ep, "Alice");
+  assert.ok(ready.length > 0);
+  assert.ok(ready.every(x => x.r.h.status === "accord" && !x.r.validated && !x.r.h.blockers.length));
+  const queue = C.harmonizeQueue(ep, "Alice");
+  const statuses = queue.map(id => C.retainedFor(ep, ep.candidates.find(c => c.id === id), "Alice").h.status);
+  assert.equal(statuses[0], "major", "le désaccord majeur en premier");
+  const ranks = statuses.map(st => C.STATUS[st].rank);
+  assert.deepEqual(ranks, [...ranks].sort((a, b) => a - b));
+  assert.ok(!queue.some(id => ready.some(x => x.cand.id === id)), "aucun accord dans la file");
+});

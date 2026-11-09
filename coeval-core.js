@@ -340,6 +340,20 @@
 
   const needsAction = r => !r.validated && ["major", "degree", "choices", "points"].includes(r.h.status);
 
+  /* Candidats en accord complet, pas encore validés et sans obstacle : validables d'un coup. */
+  function accordReady(ep, me) {
+    return ep.candidates.map(cand => ({cand, r:retainedFor(ep, cand, me)}))
+      .filter(x => !x.r.validated && x.r.h.status === "accord" && !x.r.h.blockers.length);
+  }
+
+  /* File d'harmonisation : candidats à traiter, du plus urgent au plus simple. */
+  function harmonizeQueue(ep, me) {
+    return ep.candidates.map(cand => ({cand, r:retainedFor(ep, cand, me)}))
+      .filter(x => needsAction(x.r))
+      .sort((a, b) => STATUS[a.r.h.status].rank - STATUS[b.r.h.status].rank || a.cand.name.localeCompare(b.cand.name, "fr"))
+      .map(x => x.cand.id);
+  }
+
   /* =========================
      CANDIDATS
   ========================= */
@@ -888,7 +902,7 @@
     uid, normName, q4, fmt, hash, clone, own, get, critById,
     inRange, degreeOf, stepsOf, descOf, degreeName, isValidValue, emptyEval, isFilled, scores, missingFields,
     encodeCell, decodeCell,
-    entriesFor, critCompare, harmonize, makeValidation, retainedFor, needsAction, evKey,
+    entriesFor, critCompare, harmonize, makeValidation, retainedFor, needsAction, evKey, accordReady, harmonizeQueue,
     addCandidates, parseCSV,
     exportRows, qrParts, singleQR, exportFile, parseCodes, fileToPayload, mergeOther, importPayloads, mergeMessage,
     prepRows, prepParts, exportPrepFile, prepReady, mergePrep,
