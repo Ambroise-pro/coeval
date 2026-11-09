@@ -517,3 +517,16 @@ button.ce-adopt.mean{--c:var(--ce-d3)}
 @media (min-width:1000px){
   .ce-group:has(.ce-slide-crit){display:block}
 }
+
+/* Points sous chaque cran du curseur (plus de boutons de points dans les cases). */
+.ce-slide{height:64px}
+.ce-slider{height:64px}
+.ce-slider::-webkit-slider-runnable-track{height:64px}
+.ce-slider::-moz-range-track{height:64px}
+.ce-slide-pts{position:absolute;left:18px;right:18px;top:42px;height:18px;pointer-events:none}
+.ce-slide-pts span{position:absolute;transform:translateX(-50%);font-size:12px;font-weight:600;color:var(--ce-muted);white-space:nowrap;line-height:18px;padding:0 2px;border-radius:5px}
+.ce-slide-pts span.on{color:#fff;background:var(--c)}
+.ce-slide-crit .ce-degbox{padding-bottom:8px}
+@media (max-width:699px){
+  .ce-slide-pts span{font-size:10px;padding:0 1px;letter-spacing:-.3px}
+}

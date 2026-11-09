@@ -318,13 +318,13 @@
 
   /* Cases de degré : chacune contient ses points (un toucher fixe le degré et la note)
      et, si demandé, le texte du critère pour ce degré. */
-  function degBoxes(crit, desc, deg, value, dis, showDesc) {
+  function degBoxes(crit, desc, deg, value, dis, showDesc, showPts = true) {
     return `<div class="ce-degs ce-degpts">${crit.deg.map((range, i) => {
       const d = i + 1, on = deg === d;
       const name = crit.names ? crit.names[i] : (showDesc ? "Degré " : "D") + d;
       const pts = C.stepsOf(range).map(x => `<button type="button" class="ce-pt${on && value === x ? " on" : ""}" data-act="val" data-crit="${crit.id}" data-deg="${d}" data-value="${x}" aria-pressed="${on && value === x}" aria-label="${esc(name)} : ${fmt(x)} point(s)"${dis}>${fmt(x)}</button>`).join("");
       return `<div class="ce-degbox d${d}${on ? " on" : ""}" data-d="${d}"${desc[i] ? ` title="${esc(desc[i])}"` : ""}>
-        <b>${esc(name)}</b>${showDesc ? `<span class="ce-degbox-desc">${esc(desc[i])}</span>` : ""}<div class="ce-pts">${pts}</div></div>`;
+        <b>${esc(name)}</b>${showDesc ? `<span class="ce-degbox-desc">${esc(desc[i])}</span>` : ""}${showPts ? `<div class="ce-pts">${pts}</div>` : ""}</div>`;
     }).join("")}</div>`;
   }
 
@@ -356,9 +356,10 @@
     return `<div class="ce-crit ce-slide-crit${value != null ? " filled" : ""}" data-crit="${crit.id}">
       <div class="ce-crit-head"><b>${esc(crit.label)}</b><span><strong class="ce-slide-val">${cur ? esc(stepText(crit, cur)) : "à noter"}</strong> /${crit.max}</span></div>
       ${recheck}
-      ${degBoxes(crit, desc, deg, value, locked ? " disabled" : "", true)}
+      ${degBoxes(crit, desc, deg, value, "", true, false)}
       <div class="ce-slide${cur ? ` d${cur.d}` : " unset"}">
         <div class="ce-slide-track" style="background:${gradient}">${steps.map((st, k) => `<span class="ce-tick" style="left:${pos(k)}%"></span>`).join("")}</div>
+        <div class="ce-slide-pts" aria-hidden="true">${steps.map((st, k) => `<span class="d${st.d}${k === idx ? " on" : ""}" data-k="${k}" style="left:${pos(k)}%">${fmt(st.v)}</span>`).join("")}</div>
         <input type="range" class="ce-slider" min="0" max="1000" step="1" value="${P[idx >= 0 ? idx : 0]}" data-crit="${crit.id}" data-idx="${idx >= 0 ? idx : 0}"
           data-pos="${P.join(",")}" data-steps="${steps.map(st => st.d + ":" + st.v).join(",")}" aria-label="${esc(crit.label)}" aria-valuetext="${cur ? esc(stepText(crit, cur)) + " point(s)" : "non noté"}"${locked ? " disabled" : ""}>
       </div>
@@ -399,7 +400,7 @@
     box.querySelector(".ce-slide-val").textContent = stepText(crit, st);
     // La case du degré visé s'allume, et son point aussi.
     box.querySelectorAll(".ce-degbox").forEach(b => b.classList.toggle("on", Number(b.dataset.d) === st.d));
-    box.querySelectorAll(".ce-pt").forEach(b => b.classList.toggle("on", Number(b.dataset.deg) === st.d && Number(b.dataset.value) === st.v));
+    box.querySelectorAll(".ce-slide-pts span").forEach(sp => sp.classList.toggle("on", sp.dataset.k === input.dataset.idx));
     const slide = box.querySelector(".ce-slide");
     slide.className = `ce-slide d${st.d}`;
     input.setAttribute("aria-valuetext", stepText(crit, st) + " point(s)");
