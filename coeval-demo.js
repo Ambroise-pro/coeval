@@ -1,6 +1,6 @@
 /* =========================================================
    CO-ÉVALUATION BAC — ÉPREUVE D'EXEMPLE
-   Classe fictive de 26 élèves (TG2) pour découvrir l'application :
+   Classe fictive de 28 élèves (TG2) pour découvrir l'application :
    préparation AFL2/AFL3 faite, fiches AFL1 à tous les stades,
    évaluations d'un collègue fictif et cas variés à harmoniser.
    Données reproductibles (générateur pseudo-aléatoire à graine fixe).
@@ -18,8 +18,8 @@
     "ARNAUD Léo", "BENALI Yasmine", "BERNARD Inès", "BLANC Théo", "CHEVALIER Manon", "COLIN Maxime",
     "DIALLO Aminata", "DUBOIS Lucas", "DUPONT Léa", "FAURE Nathan", "FONTAINE Chloé", "GARNIER Enzo",
     "GIRARD Camille", "HADDAD Rayan", "LAMBERT Jade", "LEFEBVRE Tom", "LEROY Sarah", "MARTIN Hugo",
-    "MARTINEZ Lina", "MOREAU Noah", "NGUYEN Emma", "PERRIN Louis", "PETIT Zoé", "ROUSSEAU Adam",
-    "TRAN Mila", "VINCENT Jules"
+    "MARTINEZ Lina", "MOREAU Noah", "NGUYEN Emma", "PERRIN Louis", "PETIT Zoé", "ROBERT Ilyès",
+    "ROUSSEAU Adam", "SIMON Louise", "TRAN Mila", "VINCENT Jules"
   ];
   const AFL1 = C.AFL1_IDS;
 
@@ -37,7 +37,7 @@
     const pick = list => list[Math.floor(rand() * list.length)];
     const day = 86400000;
     const ep = {
-      id:C.uid(), title:"EXEMPLE · Bac Musculation · TG2 (26 élèves)", createdAt:now - 14 * day,
+      id:C.uid(), title:"EXEMPLE · Bac Musculation · TG2 (28 élèves)", createdAt:now - 14 * day,
       candidates:NAMES.map(name => ({id:C.uid(), name, classroom:CLASSROOM})),
       mine:{}, others:{}, final:{}, history:[], demo:true
     };
@@ -52,7 +52,7 @@
     const rows = {};
 
     ep.candidates.forEach((c, i) => {
-      if (i >= 24) return;   // deux élèves sans aucune donnée (absents à la préparation)
+      if (i >= 26) return;   // deux élèves sans aucune donnée (absents à la préparation)
       const level = pick([2, 3, 3, 3, 4, 4]);
       const degOf = () => clamp(level + pick([-1, 0, 0, 0, 1]));
       const mine = {
@@ -61,22 +61,22 @@
       };
       // Préparation : AFL2 et AFL3 évalués avant l'épreuve.
       C.PREP_CRITS.forEach(id => set(mine, id, Math.max(2, degOf())));
-      // Jour de l'épreuve : AFL1 terminé (0-17), complet (18-20), partiel (21-23).
-      const afl1 = i < 21 ? AFL1 : AFL1.slice(0, 3);
+      // Jour de l'épreuve : AFL1 terminé (0-19), complet (20-22), partiel (23-25).
+      const afl1 = i < 23 ? AFL1 : AFL1.slice(0, 3);
       afl1.forEach(id => set(mine, id, degOf()));
-      if (i < 21) mine.updatedAt = now - 2 * 3600000 + i * 60000;
-      if (i < 18) {
+      if (i < 23) mine.updatedAt = now - 2 * 3600000 + i * 60000;
+      if (i < 20) {
         mine.done = true;
         mine.doneAt = mine.updatedAt;
         mine.initial = {split:mine.split, theme:mine.theme, role:mine.role, v:{...mine.v}, d:{...mine.d}, comment:"", at:mine.doneAt};
       }
       ep.mine[c.id] = mine;
 
-      // Collègue : terminé (0-19), partiel (20-21), rien ensuite.
-      if (i > 21) return;
-      const col = {split:mine.split, theme:mine.theme, role:mine.role, v:{}, d:{}, comment:"", updatedAt:now - 3600000 + i * 60000, done:i < 20};
+      // Collègue : terminé (0-21), partiel (22-23), rien ensuite.
+      if (i > 23) return;
+      const col = {split:mine.split, theme:mine.theme, role:mine.role, v:{}, d:{}, comment:"", updatedAt:now - 3600000 + i * 60000, done:i < 22};
       C.PREP_CRITS.forEach(id => { col.v[id] = mine.v[id]; col.d[id] = mine.d[id]; });
-      (i < 20 ? AFL1 : AFL1.slice(0, 2)).forEach(id => {
+      (i < 22 ? AFL1 : AFL1.slice(0, 2)).forEach(id => {
         const cr = C.critById(id);
         const deg = mine.d[id] || degOf();
         const steps = C.stepsOf(cr.deg[deg - 1]);

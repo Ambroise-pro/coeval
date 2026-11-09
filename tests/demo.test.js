@@ -5,9 +5,9 @@ const assert = require("node:assert/strict");
 const C = require("../coeval-core.js");
 const D = require("../coeval-demo.js");
 
-test("classe d'exemple : 26 élèves, tous les cas de croisement, valeurs dans la grille", () => {
+test("classe d'exemple : 28 élèves, tous les cas de croisement, valeurs dans la grille", () => {
   const ep = D.makeDemo("Alice", Date.UTC(2026, 5, 10, 12));
-  assert.equal(ep.candidates.length, 26);
+  assert.equal(ep.candidates.length, 28);
   const statuses = new Set(ep.candidates.map(c => C.retainedFor(ep, c, "Alice").h.status));
   for (const st of ["accord", "points", "degree", "major", "choices", "incomplete"]) assert.ok(statuses.has(st), st);
   for (const e of [...Object.values(ep.mine), ...Object.values(ep.others[D.COLLEAGUE].rows)]) {
@@ -22,6 +22,6 @@ test("classe d'exemple : 26 élèves, tous les cas de croisement, valeurs dans l
 
 test("liste CSV d'exemple lisible comme un export Pronote", () => {
   const r = C.parseCSV(D.demoCSV());
-  assert.equal(r.names.length, 26);
+  assert.equal(r.names.length, 28);
   assert.ok(r.classes.every(c => c === "TG2"));
 });

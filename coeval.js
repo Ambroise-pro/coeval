@@ -197,7 +197,7 @@
       <div class="ce-actions">
         <button type="button" class="ce-primary" data-act="new-epreuve">+ Nouvelle épreuve</button>
         <button type="button" class="ce-primary" data-act="go-receive">📥 Je suis co-évaluateur : recevoir la préparation</button>
-        <button type="button" data-act="demo">🧪 Essayer avec une classe d'exemple (26 élèves)</button>
+        <button type="button" data-act="demo">🧪 Essayer avec une classe d'exemple (28 élèves)</button>
         <label class="ce-button">📂 Restaurer une sauvegarde<input id="ceRestore" type="file" accept=".json,application/json" hidden></label>
       </div>
     </section>`;
