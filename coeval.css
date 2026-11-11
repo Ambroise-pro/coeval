@@ -599,3 +599,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 /* Onglets : jamais plus larges que l'écran (4 onglets à 390 px) */
 .ce-tabs button{min-width:0;overflow-wrap:anywhere}
 @media (max-width:699px){ .ce-tabs{gap:4px} .ce-tabs button{padding:10px 4px;font-size:14px} }
+
+/* Justification de la note dans le degré */
+.ce-just{margin-top:2px}
+.ce-just>summary{cursor:pointer;color:var(--ce-primary);font-size:13px;font-weight:600;min-height:32px;display:flex;align-items:center;list-style:none}
+.ce-just>summary::-webkit-details-marker{display:none}
+.ce-just textarea{margin-top:4px;font-size:14px}
+.ce-just-note{display:block;margin-top:4px;font-size:12px;font-style:italic;color:#334155}
+/* Plein écran : sur tablette, l'en-tête garde ses deux boutons sur une ligne */
+@media (min-width:700px){ .ce-header{flex-wrap:nowrap} .ce-header .ce-me{flex:none} }
+@media (max-width:699px){ #ceFull{padding:9px 10px} .ce-header .ce-me{flex:1 1 0;min-width:0} }
+:fullscreen body,:-webkit-full-screen body{min-height:100vh}

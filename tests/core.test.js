@@ -418,3 +418,18 @@ test("préparation par fichier", () => {
   assert.equal(b.mine[b.candidates[0].id].v.role, 1.5);
   assert.equal(b.mine[b.candidates[0].id].v.amp, undefined);
 });
+
+test("justifications par critère : transmises par fichier, gardées lors d'un QR, nettoyées", () => {
+  const a = ep(["A"]);
+  a.mine[a.candidates[0].id] = evalOf(full(), {notes:{amp:"  Butée en fin de série  ", inconnu:"x", resp:""}});
+  const file = C.exportFile(a, "Alice");
+  assert.deepEqual(file.notes, {A:{amp:"Butée en fin de série"}});
+  const b = ep([]);
+  C.importPayloads(b, [C.fileToPayload(file)], "Bruno");
+  assert.deepEqual(b.others.Alice.rows.a.notes, {amp:"Butée en fin de série"});
+  // Un QR plus récent (sans texte) ne fait pas disparaître la justification reçue.
+  a.mine[a.candidates[0].id].updatedAt = 9e12;
+  C.importPayloads(b, C.parseCodes(C.qrParts(a, "Alice")[0]).payloads, "Bruno");
+  assert.equal(b.others.Alice.rows.a.notes.amp, "Butée en fin de série");
+  assert.equal(C.cleanNotes({amp:"x".repeat(400)}).amp.length, C.NOTE_MAX);
+});

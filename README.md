@@ -87,6 +87,17 @@ annulé ne modifie pas la note. Il n’y a plus de mode de saisie par cases de p
 **Annuler la dernière saisie** restaure la dernière note ou le dernier choix de
 la fiche tant qu’aucune autre modification de cette fiche n’est intervenue.
 
+Sous chaque critère, **✎ Justifier la note** ouvre un court texte (300 caractères)
+qui explique le nombre de points choisi dans le degré. La justification est
+conservée avec la fiche, transmise par fichier (pas par QR, qui garde celle déjà
+reçue) et affichée au croisement et dans le récapitulatif.
+
+La liste des élèves propose un filtre **AFL évaluée / à évaluer** (AFL1, AFL2 ou
+AFL3) qui se combine avec la recherche, le groupe et le filtre d’état.
+
+Le bouton **⛶ Plein écran** de l’en-tête masque les barres du navigateur ; sur
+iPad sans cette fonction, ajouter l’application à l’écran d’accueil.
+
 ## Enregistrement, sauvegarde et récupération
 
 - **Enregistré sur cet appareil** décrit l’enregistrement local automatique.
@@ -146,6 +157,8 @@ npm install --prefix /tmp/coeval-browser --cache /tmp/coeval-npm-cache playwrigh
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-smoke.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-exchange.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-slider.cjs
+NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-afl1.cjs
+NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-fullscreen-filter-note.cjs
 ```
 
 Chromium est recherché dans `/usr/bin/chromium` ; définir `CHROMIUM_PATH` si besoin.

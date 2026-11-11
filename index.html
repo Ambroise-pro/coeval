@@ -6,13 +6,14 @@
   <meta name="theme-color" content="#172554">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="coeval.css?v=16">
+  <link rel="stylesheet" href="coeval.css?v=17">
   <title>Co-évaluation Bac EPS</title>
 </head>
 <body>
 
 <header class="ce-header">
   <div class="ce-brand"><h1>Co-évaluation Bac</h1><p>Musculation · CA5 · chacun note de son côté, puis on croise</p></div>
+  <button id="ceFull" type="button" class="ce-me" aria-pressed="false">⛶ Plein écran</button>
   <button id="ceMe" type="button" class="ce-me">👤 Évaluateur</button>
 </header>
 
@@ -33,10 +34,10 @@
 
 <script src="jsQR.js"></script>
 <script src="qrcode.js"></script>
-<script src="coeval-core.js?v=16"></script>
+<script src="coeval-core.js?v=17"></script>
 <script src="coeval-demo.js?v=12"></script>
 <script src="coeval-workflow.js?v=15"></script>
-<script src="coeval.js?v=15"></script>
+<script src="coeval.js?v=17"></script>
 <script>
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).catch(() => {});

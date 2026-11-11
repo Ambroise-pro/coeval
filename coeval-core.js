@@ -433,10 +433,26 @@
     return QR_PREFIX + JSON.stringify({v:FORMAT_VERSION, t:ep.title, e:me, a:now, s:1, r:exportRows(ep, [cand])});
   }
 
+  /* Justifications : une phrase par critère, expliquant les points choisis dans le degré. */
+  const NOTE_MAX = 300;
+  function cleanNotes(n) {
+    const out = {};
+    if (n && typeof n === "object") GRID.forEach(cr => {
+      const t = get(n, cr.id);
+      if (typeof t === "string" && t.trim()) out[cr.id] = t.trim().slice(0, NOTE_MAX);
+    });
+    return out;
+  }
+
   function exportFile(ep, me, now = Date.now()) {
-    const comments = {};
-    ep.candidates.forEach(c => { const t = get(ep.mine, c.id)?.comment; if (t) comments[c.name] = t; });
-    return {type:"coeval-musculation", version:FORMAT_VERSION, title:ep.title, by:me, at:now, rows:exportRows(ep), comments};
+    const comments = {}, notes = {};
+    ep.candidates.forEach(c => {
+      const ev = get(ep.mine, c.id);
+      if (ev?.comment) comments[c.name] = ev.comment;
+      const n = cleanNotes(ev?.notes);
+      if (Object.keys(n).length) notes[c.name] = n;
+    });
+    return {type:"coeval-musculation", version:FORMAT_VERSION, title:ep.title, by:me, at:now, rows:exportRows(ep), comments, notes};
   }
 
   function parseCodes(text) {
@@ -455,7 +471,7 @@
 
   function fileToPayload(d) {
     return {v:d.version || 1, title:d.title, by:d.by, at:d.at, batch:"file-" + d.at, part:null, single:false,
-      prep:d.type === "coeval-preparation", rows:d.rows, comments:d.comments};
+      prep:d.type === "coeval-preparation", rows:d.rows, comments:d.comments, notes:d.notes};
   }
 
   /* =========================
@@ -590,6 +606,9 @@
       const old = get(other.rows, key);
       const comment = p.comments ? get(p.comments, name) : undefined;
       ev.comment = typeof comment === "string" ? comment : old?.comment || "";
+      // Justifications reçues par fichier ; un QR (sans texte) garde celles déjà reçues.
+      const notes = p.notes ? cleanNotes(get(p.notes, name)) : cleanNotes(old?.notes);
+      if (Object.keys(notes).length) ev.notes = notes;
       if (!isFilled(ev)) { if (!old) other.rows[key] = ev; return; }
       if (isFilled(old) && (old.updatedAt || 0) > ev.updatedAt) { older++; return; }
       other.rows[key] = ev;
@@ -672,6 +691,7 @@
       if (ev.v[cr.id] == null && !(ev.d[cr.id] >= 1 && ev.d[cr.id] <= 4)) delete ev.d[cr.id];
     });
     ["split", "theme", "role", "comment"].forEach(k => { ev[k] = typeof ev[k] === "string" ? ev[k] : ""; });
+    if (ev.notes != null) { const n = cleanNotes(ev.notes); if (Object.keys(n).length) ev.notes = n; else delete ev.notes; }
     ev.updatedAt = typeof ev.updatedAt === "number" ? ev.updatedAt : 0;
     ev.done = !!ev.done;
     return ev;
@@ -914,7 +934,7 @@
 
   return {
     DATA_VERSION, FORMAT_VERSION, QR_PREFIX, PER_QR,
-    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
+    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
     uid, normName, q4, fmt, hash, clone, own, get, critById,
     inRange, degreeOf, stepsOf, descOf, degreeName, isValidValue, emptyEval, isFilled, scores, missingFields,
     encodeCell, decodeCell,

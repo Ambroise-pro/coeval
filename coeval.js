@@ -417,7 +417,16 @@
         <input type="range" class="ce-slider" min="0" max="1000" step="1" value="${P[idx >= 0 ? idx : 0]}" data-crit="${crit.id}" data-idx="${idx >= 0 ? idx : 0}"
           data-pos="${P.join(",")}" data-steps="${steps.map(st => st.d + ":" + st.v).join(",")}" aria-label="${esc(crit.label)}" aria-valuetext="${cur ? esc(stepText(crit, cur)) + " point(s)" : "non noté"}"${locked ? " disabled" : ""}>
       </div>
+      ${justifHTML(crit, ev, locked)}
     </div>`;
+  }
+
+  /* Justification facultative de la note choisie dans le degré (une phrase par critère). */
+  function justifHTML(crit, ev, locked) {
+    const note = ev.notes?.[crit.id] || "";
+    return `<details class="ce-just"${note ? " open" : ""}><summary>✎ ${note ? "Justification" : "Justifier la note"}</summary>
+      <textarea data-act="crit-note" data-crit="${crit.id}" rows="2" maxlength="${C.NOTE_MAX}" aria-label="Justification · ${esc(crit.label)}"
+        placeholder="Ex. 1,25 et non 1 : charge adaptée mais régulation tardive"${locked ? " readonly" : ""}>${esc(note)}</textarea></details>`;
   }
 
   /* Cale le curseur sur le cran le plus proche ; renvoie son degré et ses points. */
@@ -998,7 +1007,7 @@
       const cls = ["major", "degree"].includes(st.status) ? "ce-row-bad" : st.status === "points" ? "ce-row-mid" : "";
       return `${group}<tr class="${cls}"><td>${esc(cr.label)} <small>/${cr.max}</small></td>
         <td><b>${v != null ? `${dot(cr, d)} ${fmt(v)}` : "—"}</b><small>${origin(cr)}</small></td>
-        ${present.map(x => { const m = st.marks[x.i]; return `<td>${m ? `${dot(cr, m.d)} ${fmt(m.v)}` : "—"}</td>`; }).join("")}</tr>`;
+        ${present.map(x => { const m = st.marks[x.i]; const j = x.ev.notes?.[cr.id]; return `<td>${m ? `${dot(cr, m.d)} ${fmt(m.v)}` : "—"}${j ? `<small class="ce-just-note">✎ ${esc(j)}</small>` : ""}</td>`; }).join("")}</tr>`;
     }).join("");
     const s = r.validated || h.scores;
     const [w2, w3] = SPLITS[ev.split] || [];
@@ -1154,8 +1163,10 @@
       const m = st.marks[i];
       if (!m) return `<div class="ce-cmp"><b>${esc(x.name)}</b><p class="ce-hint">Pas de note.</p></div>`;
       const desc = C.descOf(cr, x.ev.role);
+      const just = x.ev.notes?.[cr.id];
       const inner = `<span class="ce-adopt-head"><b>${esc(x.name)}</b> ${dot(cr, m.d)} <span>${fmt(m.v)} pt</span></span>
-        <p>${esc(desc ? desc[m.d - 1] : "")}</p>${cr.descByRole && x.ev.role ? `<small>Grille « ${esc(ROLES[x.ev.role])} »</small>` : ""}`;
+        <p>${esc(desc ? desc[m.d - 1] : "")}</p>${cr.descByRole && x.ev.role ? `<small>Grille « ${esc(ROLES[x.ev.role])} »</small>` : ""}
+        ${just ? `<p class="ce-just-note">✎ ${esc(just)}</p>` : ""}`;
       if (!adopt) return `<div class="ce-cmp d${m.d}">${inner}</div>`;
       const on = picked(m.d, m.v);
       return `<button type="button" class="ce-cmp ce-adopt d${m.d}${on ? " on" : ""}" data-act="h-val" data-crit="${cr.id}" data-deg="${m.d}" data-value="${m.v}" aria-pressed="${on}"${dis}>
@@ -1515,13 +1526,22 @@
     log(ep, {type:'undo-input', cand:currentId, candName:candById(ep,currentId).name});
     lastInput = null; save(); render(); toast('Dernière saisie annulée.');
   }
+  /* Filtre par AFL : « évaluée » = tous ses critères notés sur ma fiche. */
+  const AFL_IDS = {afl1:C.AFL1_IDS, afl2:C.AFL2_IDS, afl3:["role"]};
+  const aflDone = (ev, afl) => AFL_IDS[afl].every(id => ev?.v?.[id] != null);
+  function aflMatch(ep, c) {
+    if (!ui.afl) return true;
+    const [afl, want] = ui.afl.split("-");
+    return aflDone(C.get(ep.mine, c.id), afl) === (want === "done");
+  }
   function viewCandidates(ep) {
-    return W.candidates(ep, {search:ui.search || '', group:ui.group || '', filter:c=>evalFilter==='all'||scopeProgress(C.get(ep.mine,c.id),tab==='prep'?'prep':'afl1').state===evalFilter});
+    return W.candidates(ep, {search:ui.search || '', group:ui.group || '', filter:c=>(evalFilter==='all'||scopeProgress(C.get(ep.mine,c.id),tab==='prep'?'prep':'afl1').state===evalFilter)&&aflMatch(ep,c)});
   }
   function listControls(ep) {
     const groups=[...new Set(ep.candidates.map(c=>c.group).filter(Boolean))].sort();
     return `<div class="ce-list-tools"><label>Rechercher un élève<input id="ceSearch" type="search" value="${esc(ui.search||'')}" placeholder="Nom ou classe"></label>
       <label>Groupe<select id="ceGroup"><option value="">Tous les groupes</option>${groups.map(g=>`<option${ui.group===g?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
+      <label>AFL<select id="ceAfl"><option value="">Toutes les AFL</option>${["afl1", "afl2", "afl3"].map(a => ["done", "todo"].map(w => `<option value="${a}-${w}"${ui.afl === a + "-" + w ? " selected" : ""}>${a.toUpperCase()} ${w === "done" ? "évaluée" : "à évaluer"}</option>`).join("")).join("")}</select></label>
       <button type="button" data-act="clear-filters">Afficher tous les élèves</button></div>`;
   }
   function renderDashboard(main,ep) {
@@ -1537,9 +1557,8 @@
   async function checkOffline() {
     try {
       const registration=await navigator.serviceWorker?.getRegistration();
-      const cache=await caches.open('coeval-15');
       const files=['./','index.html','coeval.css','coeval-core.js','coeval-demo.js','coeval-workflow.js','coeval.js','qrcode.js','jsQR.js','manifest.webmanifest'];
-      offlineReady=!!registration?.active && (await Promise.all(files.map(f=>cache.match(f)))).every(Boolean);
+      offlineReady=!!registration?.active && (await Promise.all(files.map(f=>caches.match(f,{ignoreSearch:true})))).every(Boolean);
     } catch(e) { offlineReady=false; }
     renderNotice(active());
     const status=$('ceOfflineCheck');if(status) status.textContent=offlineReady?'Application disponible hors connexion sur cet appareil.':'Disponibilité hors connexion non confirmée. Recharge en ligne puis revérifie.';
@@ -1687,7 +1706,7 @@
         else {tab=el.dataset.target;ui.search='';ui.group='';evalFilter='all';currentId=W.candidates(ep).find(c=>W.eligible(c)&&!C.get(ep.mine,c.id)?.done)?.id||null;render();}break;
       case "passage": ui.passage=!ui.passage;saveUi();render();if(ui.passage)scrollToSheet();break;
       case "undo-input": undoInput(ep);break;
-      case "clear-filters": ui.search='';ui.group='';evalFilter='all';saveUi();render();break;
+      case "clear-filters": ui.search='';ui.group='';ui.afl='';evalFilter='all';saveUi();render();break;
       case "open-student": currentId=el.dataset.id;ui.search='';ui.group='';evalFilter='all';tab='eval';render();break;
       case "readiness": openReadiness();break;
       case "test-camera": testCamera();break;
@@ -1974,6 +1993,7 @@
     }
     if (el.id === "ceEpreuve") { db.activeId = el.value; currentId = crossId = null; crossView = "table"; save(); render(); return; }
     if (el.id === 'ceGroup') {ui.group=el.value;saveUi();render();return;}
+    if (el.id === 'ceAfl') {ui.afl=el.value;saveUi();render();return;}
     if (el.id === 'ceImportTarget' && pendingExchange) {const p=pendingExchange;previewExchange(p.payloads,p.title,el.value);return;}
     if (el.id === "ceSort") { crossSort = el.value; render(); return; }
     if (el.id === "ceFile" && el.files[0]) { importFile(el.files[0]); el.value = ""; return; }
@@ -2001,6 +2021,17 @@
       const start=el.selectionStart;ui.search=el.value;saveUi();render();$('ceSearch')?.focus();if($('ceSearch')) $('ceSearch').setSelectionRange(start,start);return;
     }
     if(el.dataset.feedback) {const c=candById(active(),el.dataset.feedback);if(c){c.feedback=el.value;c.organizationAt=Date.now();save();}return;}
+    if (el.dataset.act === "crit-note" && (tab === "eval" || tab === "prep")) {
+      const e = evalOf(active(), currentId);
+      if (e.done && C.AFL1_IDS.includes(el.dataset.crit)) return;
+      const t = el.value.trim();
+      e.notes = e.notes || {};
+      if (t) e.notes[el.dataset.crit] = el.value.slice(0, C.NOTE_MAX); else delete e.notes[el.dataset.crit];
+      if (!Object.keys(e.notes).length) delete e.notes;
+      e.updatedAt = Date.now();
+      save();
+      return;
+    }
     if (el.dataset.field === "comment" && tab === "eval") {
       const e = evalOf(active(), currentId);
       if (e.done) return;
@@ -2071,6 +2102,20 @@
     if (t && t.trim()) { newEpreuve(t.trim()); tab = "prep"; render(); openCandidates(active()); }
   });
   $("ceCandidates").addEventListener("click", () => { const ep = active(); if (ep) openCandidates(ep); else toast("Crée d'abord une épreuve."); });
+  /* Plein écran (API du navigateur). Sur iPhone, l'API n'existe pas : l'ajout à l'écran d'accueil donne le même effet. */
+  const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+  const fsButton = () => { const b = $("ceFull"); if (b) { const on = !!fsElement(); b.textContent = on ? "⤡ Quitter" : "⛶ Plein écran"; b.setAttribute("aria-pressed", on); } };
+  $("ceFull")?.addEventListener("click", () => {
+    const root = document.documentElement;
+    if (fsElement()) { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); return; }
+    const req = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (!req) { toast("Plein écran indisponible ici : utilise « Partager › Sur l'écran d'accueil » pour ouvrir l'application sans barre de navigateur."); return; }
+    Promise.resolve(req.call(root)).catch(() => toast("Le navigateur a refusé le plein écran."));
+  });
+  document.addEventListener("fullscreenchange", fsButton);
+  document.addEventListener("webkitfullscreenchange", fsButton);
+  if (window.matchMedia?.("(display-mode: standalone)").matches && !document.documentElement.requestFullscreen && $("ceFull")) $("ceFull").classList.add("hidden");
+
   $("ceMe").addEventListener("click", () => {
     const v = prompt("Ton nom d'évaluateur :", db.me);
     if (v && v.trim()) { db.me = v.trim(); save(); render(); }
