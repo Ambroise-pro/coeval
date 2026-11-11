@@ -34,6 +34,8 @@
   let detailMode = null;
   let editChoices = null;  // candidat dont on modifie le thème, la répartition et le rôle   // "recap" ou "harmo" ; par défaut : récapitulatif si la note est validée   // harmonisation enchaînée : {ids, i, done}
   let evalFilter = "all";
+  // Après un changement de filtre, l'élève ouvert n'est plus gardé dans la liste.
+  let refilter = true;
   const openCrits = {};
   let stopCamera = null;
   let shareIndex = 0;
@@ -263,7 +265,8 @@
       return;
     }
     if (!candById(ep, currentId)) currentId = ep.candidates[0].id;
-    const visible = viewCandidates(ep);
+    const visible = viewCandidates(ep, refilter ? null : currentId);
+    refilter = false;
     if (visible.length && !visible.some(c => c.id === currentId)) currentId = visible[0].id;
     if(!visible.length) {main.innerHTML=`<div class="ce-eval"><aside class="ce-list">${listControls(ep)}</aside><section class="ce-card"><h2>Aucun élève pour ces filtres</h2><button type="button" data-act="clear-filters">Afficher tous les élèves</button></section></div>`;return;}
     const cand = candById(ep, currentId);
@@ -1534,8 +1537,10 @@
     const [afl, want] = ui.afl.split("-");
     return aflDone(C.get(ep.mine, c.id), afl) === (want === "done");
   }
-  function viewCandidates(ep) {
-    return W.candidates(ep, {search:ui.search || '', group:ui.group || '', filter:c=>(evalFilter==='all'||scopeProgress(C.get(ep.mine,c.id),tab==='prep'?'prep':'afl1').state===evalFilter)&&aflMatch(ep,c)});
+  // L'élève ouvert reste dans la liste filtrée tant qu'on ne passe pas à un autre :
+  // le noter ne le fait pas disparaître de l'écran.
+  function viewCandidates(ep, keepId = currentId) {
+    return W.candidates(ep, {search:ui.search || '', group:ui.group || '', filter:c=>c.id===keepId||(evalFilter==='all'||scopeProgress(C.get(ep.mine,c.id),tab==='prep'?'prep':'afl1').state===evalFilter)&&aflMatch(ep,c)});
   }
   function listControls(ep) {
     const groups=[...new Set(ep.candidates.map(c=>c.group).filter(Boolean))].sort();
@@ -1703,7 +1708,7 @@
       case "go-dashboard": closeDialog();tab='home';render();break;
       case "dashboard-next":
         if(el.dataset.target==='candidates') openCandidates(ep);
-        else {tab=el.dataset.target;ui.search='';ui.group='';evalFilter='all';currentId=W.candidates(ep).find(c=>W.eligible(c)&&!C.get(ep.mine,c.id)?.done)?.id||null;render();}break;
+        else {tab=el.dataset.target;ui.search='';ui.group='';evalFilter='all';refilter=true;currentId=W.candidates(ep).find(c=>W.eligible(c)&&!C.get(ep.mine,c.id)?.done)?.id||null;render();}break;
       case "passage": ui.passage=!ui.passage;saveUi();render();if(ui.passage)scrollToSheet();break;
       case "undo-input": undoInput(ep);break;
       case "clear-filters": ui.search='';ui.group='';ui.afl='';evalFilter='all';saveUi();render();break;
@@ -1741,7 +1746,7 @@
         break;
       }
       case "candidates": if (ep) openCandidates(ep); break;
-      case "eval-filter": evalFilter = evalFilter === el.dataset.filter ? "all" : el.dataset.filter; render(); break;
+      case "eval-filter": evalFilter = evalFilter === el.dataset.filter ? "all" : el.dataset.filter; refilter = true; render(); break;
       case "pick": currentId = el.dataset.id; editChoices = null; render(); scrollToSheet(); break;
       case "edit-choices": editChoices = editChoices === currentId ? null : currentId; render(); break;
       case "step": {
@@ -1993,7 +1998,7 @@
     }
     if (el.id === "ceEpreuve") { db.activeId = el.value; currentId = crossId = null; crossView = "table"; save(); render(); return; }
     if (el.id === 'ceGroup') {ui.group=el.value;saveUi();render();return;}
-    if (el.id === 'ceAfl') {ui.afl=el.value;saveUi();render();return;}
+    if (el.id === 'ceAfl') {ui.afl=el.value;refilter=true;saveUi();render();return;}
     if (el.id === 'ceImportTarget' && pendingExchange) {const p=pendingExchange;previewExchange(p.payloads,p.title,el.value);return;}
     if (el.id === "ceSort") { crossSort = el.value; render(); return; }
     if (el.id === "ceFile" && el.files[0]) { importFile(el.files[0]); el.value = ""; return; }

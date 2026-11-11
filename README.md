@@ -94,6 +94,8 @@ reçue) et affichée au croisement et dans le récapitulatif.
 
 La liste des élèves propose un filtre **AFL évaluée / à évaluer** (AFL1, AFL2 ou
 AFL3) qui se combine avec la recherche, le groupe et le filtre d’état.
+L’élève ouvert reste affiché quand sa saisie le fait sortir du filtre ; il
+quitte la liste lorsqu’on passe à un autre élève.
 
 Le bouton **⛶ Plein écran** de l’en-tête masque les barres du navigateur ; sur
 iPad sans cette fonction, ajouter l’application à l’écran d’accueil.

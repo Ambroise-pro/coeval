@@ -45,6 +45,23 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       await p.selectOption('#ceAfl', 'afl2-done');
       const n2 = await p.locator('.ce-cand').count();
       check(`[${label}] filtre « AFL2 évaluée »`, n2 === expect.done2, `${n2} élève(s)`);
+      // L'élève noté reste affiché tant qu'on ne passe pas à un autre.
+      await p.selectOption('#ceAfl', 'afl1-todo');
+      const before = await p.locator('.ce-cand').count();
+      for (const id of ['amp', 'resp', 'post', 'param', 'ress', 'regul']) {
+        const sl = p.locator(`.ce-slider[data-crit=${id}]`);
+        await sl.evaluate(e => e.scrollIntoView({block: 'center'}));
+        const bb = await sl.boundingBox();
+        await p.mouse.click(bb.x + bb.width * .7, bb.y + bb.height / 2);
+        await p.waitForTimeout(80);
+      }
+      const graded = await p.evaluate(() => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); const afl1 = ['amp', 'resp', 'post', 'param', 'ress', 'regul']; return e.candidates.filter(c => (!c.situation || c.situation === 'present') && !afl1.every(id => e.mine[c.id]?.v?.[id] != null)).length; });
+      const after = await p.locator('.ce-cand').count();
+      const stillOpen = await p.locator('.ce-slider[data-crit=amp]').count() === 1;
+      check(`[${label}] élève noté gardé dans la liste filtrée`, after === before && stillOpen && graded === before - 1, `${before} → ${after}, restants ${graded}`);
+      await p.locator('[data-act=step][data-step="1"]').filter({visible: true}).first().click();
+      await p.waitForTimeout(150);
+      check(`[${label}] retiré en passant à l'élève suivant`, (await p.locator('.ce-cand').count()) === before - 1);
       await p.locator('[data-act=clear-filters]').filter({visible: true}).first().click();
       check(`[${label}] « Afficher tous les élèves » efface le filtre AFL`, (await p.$eval('#ceAfl', s => s.value)) === '');
 
