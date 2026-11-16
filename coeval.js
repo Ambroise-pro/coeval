@@ -328,7 +328,7 @@
     const lockBar = !locked && ev.initial ? `<div class="ce-lock open">✏️ Fiche rouverte (modifications tracées).</div>` : "";
     const part = (val, p) => val != null ? fmt(val) : p != null ? fmt(p) + "…" : "—";
 
-    main.innerHTML = `<div class="ce-eval">
+    main.innerHTML = `<div class="ce-eval${prepScope ? "" : " ce-eval-afl1"}">
       <aside class="ce-list">${listTop}${listControls(ep)}<div class="ce-pg-legend">${legend}</div>${list || "<p>Aucun élève pour ces filtres.</p>"}</aside>
       <section class="ce-sheet">
         ${!visible.length?'<p class="ce-warn">Aucun résultat : la fiche ci-dessous reste celle de l’élève précédemment sélectionné.</p>':""}<div class="ce-card ce-cand-head">
