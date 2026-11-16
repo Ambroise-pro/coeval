@@ -438,16 +438,20 @@ test("questions d'entretien : deux questions par degré, rotation, degré propos
   const d = (a, pick) => C.quizDegree("regul", a, pick);
   // Sans tirage : les deux premières compétences de chaque niveau (q2a, q2b, q3a, q3b, q4a, q4b).
   assert.deepEqual(C.quizPicked("regul").map(it => it.id), ["q2a", "q2b", "q3a", "q3b", "q4a", "q4b"]);
-  assert.equal(d({}), null);
-  assert.equal(d({q2a:true}), null, "les deux questions du niveau doivent être renseignées");
-  assert.deepEqual(d({q2a:false, q2b:false}), {d:1, v:0});
-  assert.deepEqual(d({q2a:true, q2b:false}), {d:1, v:.25});
-  assert.equal(d({q2a:true, q2b:true}), null, "le niveau suivant doit être renseigné");
-  assert.deepEqual(d({q2a:true, q2b:true, q3a:false, q3b:false}), {d:2, v:.5});
-  assert.deepEqual(d({q2a:true, q2b:true, q3a:true, q3b:false}), {d:2, v:.75});
-  assert.deepEqual(d({q2a:true, q2b:true, q3a:true, q3b:true, q4a:false, q4b:false}), {d:3, v:1});
-  assert.deepEqual(d({q2a:true, q2b:true, q3a:true, q3b:true, q4a:true, q4b:false}), {d:3, v:1.25});
-  assert.deepEqual(d({q2a:true, q2b:true, q3a:true, q3b:true, q4a:true, q4b:true}), {d:4, v:2});
+  // Questionnement descendant : degré 4 d'abord, puis on descend tant qu'une réponse n'est pas satisfaisante.
+  const lv = a => C.quizLevels("regul", a).join(">");
+  assert.equal(d({}), null); assert.equal(lv({}), "4");
+  assert.equal(d({q4a:true}), null, "les deux questions du degré doivent être renseignées");
+  assert.deepEqual(d({q4a:true, q4b:true}), {d:4, v:2}); assert.equal(lv({q4a:true, q4b:true}), "4", "degré 4 : rien d'autre à poser");
+  assert.equal(d({q4a:true, q4b:false}), null); assert.equal(lv({q4a:true, q4b:false}), "4>3", "une réponse fausse : on descend au degré 3");
+  assert.deepEqual(d({q4a:true, q4b:false, q3a:true, q3b:true}), {d:3, v:1.25});
+  assert.deepEqual(d({q4a:false, q4b:false, q3a:true, q3b:true}), {d:3, v:1});
+  assert.equal(lv({q4a:false, q4b:false, q3a:true, q3b:false}), "4>3>2");
+  assert.deepEqual(d({q4a:false, q4b:false, q3a:true, q3b:false, q2a:true, q2b:true}), {d:2, v:.75});
+  assert.deepEqual(d({q4a:false, q4b:false, q3a:false, q3b:false, q2a:true, q2b:true}), {d:2, v:.5});
+  assert.deepEqual(d({q4a:false, q4b:false, q3a:false, q3b:false, q2a:true, q2b:false}), {d:1, v:.25});
+  assert.deepEqual(d({q4a:false, q4b:false, q3a:false, q3b:false, q2a:false, q2b:false}), {d:1, v:0});
+  assert.deepEqual(d({q4a:true, q4b:true, q3a:false, q2a:false}), {d:4, v:2}, "réponses des degrés non posés ignorées");
   ["1", "2", "3"].forEach(t => C.quizItems("regul").forEach(it => assert.ok(it.ok[t] || it.ok[""], `${it.id} thème ${t}`)));
   // Banque : plusieurs questions par compétence, identifiants uniques, vitesse d'exécution en D3.
   const levels = C.QUIZ.regul, topics = levels.flatMap(l => l.topics);
@@ -464,7 +468,7 @@ test("questions d'entretien : deux questions par degré, rotation, degré propos
   const pick = {breath:"q2c2", whybreath:"q2d", speed:"q3c", why:"q3b4"};
   assert.deepEqual(C.quizPicked("regul", pick).map(it => it.id), ["q2c2", "q2d", "q3b4", "q3c", "q4a", "q4b"]);
   assert.equal(d({q2a:true, q2b:true, q3a:true, q3b:true}, pick), null, "seules les questions tirées comptent");
-  assert.deepEqual(d({q2c2:true, q2d:true, q3b4:true, q3c:false}, pick), {d:2, v:.75});
+  assert.deepEqual(d({q4a:false, q4b:false, q3b4:true, q3c:false, q2c2:true, q2d:true}, pick), {d:2, v:.75});
   const ep2 = {candidates:[], mine:{a:{v:{}, d:{}, quizPick:{regul:{mobile:"q2a2", params:"zzz"}, autre:{x:"y"}}}}};
   C.migrateEpreuve(ep2, "Moi");
   assert.deepEqual(ep2.mine.a.quizPick, {regul:{mobile:"q2a2"}});

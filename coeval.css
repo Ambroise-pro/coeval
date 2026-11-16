@@ -624,6 +624,8 @@ dialog.ce-quiz-dlg .ce-dialog{padding:0;max-height:calc(100dvh - 24px);overflow:
 .ce-quiz-sub{margin:8px 16px 4px}
 .ce-quiz>.ce-hint{margin:0 16px 8px}
 .ce-quiz-level{padding:0 16px 8px}
+.ce-quiz-how{margin:0 16px 4px}
+.ce-quiz-down{margin:10px 0 2px;padding:6px 10px;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:13px;font-weight:600}
 .ce-quiz-level h4{margin:8px 0 6px;font-size:14px;display:flex;gap:8px;align-items:center}
 .ce-quiz-d{flex:none;border-radius:6px;padding:2px 7px;color:#fff;font-size:12px}
 .ce-quiz-d.d2{background:var(--ce-d2);color:#1f2937}.ce-quiz-d.d3{background:var(--ce-d3)}.ce-quiz-d.d4{background:var(--ce-d4)}

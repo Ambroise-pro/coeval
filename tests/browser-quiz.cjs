@@ -41,8 +41,8 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       check(`[${label}] le bouton ouvre le questionnaire en popup`, await p.evaluate(() => document.getElementById('ceDialog').open) && await quiz.count() === 1);
       const themeName = {1: 'Puissance', 2: 'Tonification', 3: 'Volume'}[cand.theme];
       check(`[${label}] questions adaptées au mobile (${themeName})`, (await quiz.locator('.ce-quiz-sub').textContent()).includes(themeName));
-      check(`[${label}] 6 questions : deux par degré`, await quiz.locator('.ce-quiz-item').count() === 6
-        && await quiz.locator('.ce-quiz-level').evaluateAll(ls => ls.every(l => l.querySelectorAll('.ce-quiz-item').length === 2)));
+      check(`[${label}] on commence par les deux questions du degré 4`, await quiz.locator('.ce-quiz-item').count() === 2
+        && (await quiz.locator('.ce-quiz-level').getAttribute('data-level')) === '4');
       const pick1 = await p.evaluate(id => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); return e.mine[id].quizPick?.regul; }, cand.id);
       check(`[${label}] questions tirées enregistrées pour l'élève`, pick1 && Object.keys(pick1).length === 6);
       const hint = await quiz.locator('.ce-quiz-item').first().locator('.ce-quiz-exp').textContent();
@@ -54,7 +54,11 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
         await btn.evaluate(e => e.scrollIntoView({block: 'center'}));
         await btn.click();
       };
-      for (const [q, y] of [[0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [5, 0]]) await ans(q, y);
+      await ans(0, 1); await ans(1, 0);
+      check(`[${label}] une réponse non satisfaisante en D4 : les questions du degré 3 apparaissent`, await p.locator('#ceDialog .ce-quiz-item').count() === 4
+        && await p.locator('#ceDialog .ce-quiz-level[data-level="3"]').count() === 1 && await p.locator('#ceDialog .ce-quiz-level[data-level="2"]').count() === 0);
+      await ans(2, 1); await ans(3, 1);
+      check(`[${label}] D3 satisfait : le degré 2 n'est pas posé`, await p.locator('#ceDialog .ce-quiz-level[data-level="2"]').count() === 0);
       check(`[${label}] le popup reste ouvert pendant les réponses`, await p.evaluate(() => document.getElementById('ceDialog').open));
       const result = await p.locator('#ceDialog .ce-quiz-result').textContent();
       check(`[${label}] degré proposé D3 · 1,25`, result.includes('D3 · 1,25'), result.trim());
@@ -63,15 +67,15 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       await place.click();
       const ev = await p.evaluate(id => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); return e.mine[id]; }, cand.id);
       check(`[${label}] placé sur le curseur`, ev.d.regul === 3 && ev.v.regul === 1.25, JSON.stringify({d: ev.d.regul, v: ev.v.regul}));
-      check(`[${label}] justification ajoutée`, /^Entretien : 5\/6/.test(ev.notes?.regul || '') && ev.notes.regul.includes('Non satisfait'), ev.notes?.regul);
-      check(`[${label}] réponses conservées`, Object.keys(ev.quiz?.regul || {}).length === 6 && Object.values(pick1).every(id => typeof ev.quiz.regul[id] === 'boolean'));
+      check(`[${label}] justification ajoutée`, /^Entretien : 3\/4/.test(ev.notes?.regul || '') && ev.notes.regul.includes('Non satisfait'), ev.notes?.regul);
+      check(`[${label}] réponses conservées`, Object.keys(ev.quiz?.regul || {}).length === 4);
       check(`[${label}] curseur affiche D3 · 1,25`, (await p.textContent('.ce-slide-crit[data-crit=regul] .ce-slide-val')).includes('D3 · 1,25'));
       check(`[${label}] popup fermé après placement, avancement sous le bouton`, !(await p.evaluate(() => document.getElementById('ceDialog').open))
-        && (await p.textContent('.ce-slide-crit[data-crit=regul] .ce-quiz-open')).includes('6/6 réponses · proposé D3 · 1,25'));
+        && (await p.textContent('.ce-slide-crit[data-crit=regul] .ce-quiz-open')).includes('4/4 réponses · proposé D3 · 1,25'));
       await openBtn.click();
       check(`[${label}] indication « placé » à la réouverture`, await p.locator('#ceDialog .ce-quiz-ok').count() === 1);
       // Une réponse corrigée propose un autre degré ; une note déjà justifiée n'est pas écrasée.
-      await ans(5, 1);
+      await ans(1, 1);
       check(`[${label}] nouvelle proposition après correction`, (await p.textContent('#ceDialog .ce-quiz-result')).includes('D4 · 2'));
       await p.locator('#ceDialog [data-act=quiz-place]').click();
       const ev2 = await p.evaluate(id => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); return e.mine[id]; }, cand.id);
@@ -81,7 +85,7 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       await p.locator('#ceSearch').fill(cand.name.split(' ')[0]);
       await p.locator('.ce-cand').first().click();
       await p.locator('.ce-slide-crit[data-crit=regul] [data-act=quiz-open]').click();
-      check(`[${label}] réponses affichées après rechargement`, await p.locator('#ceDialog .ce-quiz-ans button.on').count() === 6);
+      check(`[${label}] réponses affichées après rechargement`, await p.locator('#ceDialog .ce-quiz-ans button.on').count() === 2);
       await p.locator('#ceDialog [data-act=quiz-close]').click();
       check(`[${label}] bouton ✕ ferme le popup`, !(await p.evaluate(() => document.getElementById('ceDialog').open)));
       // « Autre question » : une autre question sur le même point, sa réponse est effacée.
@@ -92,7 +96,7 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       const after = await p.locator(`#ceDialog .ce-quiz-item[data-topic=${topic}]`).getAttribute('data-q');
       const evS = await p.evaluate(id => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); return e.mine[id]; }, cand.id);
       check(`[${label}] « Autre question » change la question et efface sa réponse`, before !== after && evS.quizPick.regul[topic] === after && evS.quiz.regul[before] === undefined
-        && await p.locator(`#ceDialog .ce-quiz-item[data-topic=${topic}] button.on`).count() === 0 && await p.locator('#ceDialog .ce-quiz-item').count() === 6);
+        && await p.locator(`#ceDialog .ce-quiz-item[data-topic=${topic}] button.on`).count() === 0 && await p.locator('#ceDialog .ce-quiz-item').count() === 2);
       await p.locator('#ceDialog [data-act=quiz-close]').click();
       // Rotation : l'élève suivant reçoit d'autres questions.
       const other = await p.evaluate(id => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId);

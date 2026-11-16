@@ -431,7 +431,8 @@
   function quizHTML(crit, ev, locked) {
     if (!C.QUIZ[crit.id]) return "";
     const a = ev.quiz?.[crit.id] || {}, pick = ev.quizPick?.[crit.id];
-    const picked = C.quizPicked(crit.id, pick, a);
+    const shown = C.quizLevels(crit.id, a, pick);
+    const picked = C.quizPicked(crit.id, pick, a).filter(it => shown.includes(it.level));
     const total = picked.length;
     const answered = picked.filter(it => typeof a[it.id] === "boolean").length;
     const prop = C.quizDegree(crit.id, a, pick);
@@ -446,7 +447,8 @@
     const a = ev.quiz?.[crit.id] || {}, pick = ev.quizPick?.[crit.id];
     const theme = ev.theme || "";
     const prop = C.quizDegree(crit.id, a, pick);
-    const picked = C.quizPicked(crit.id, pick, a);
+    const shown = C.quizLevels(crit.id, a, pick);
+    const picked = C.quizPicked(crit.id, pick, a).filter(it => shown.includes(it.level));
     const answered = picked.filter(it => typeof a[it.id] === "boolean").length;
     const same = prop && ev.d[crit.id] === prop.d && ev.v[crit.id] === prop.v;
     const btn = (it, val, label) => `<button type="button" data-act="quiz" data-crit="${crit.id}" data-q="${it.id}" data-ans="${val ? 1 : 0}"
@@ -455,14 +457,15 @@
       <div class="ce-quiz-top"><h2>${esc(crit.label)} · ${esc(cand.name)}</h2><button type="button" value="close" data-act="quiz-close" aria-label="Fermer">✕</button></div>
       <p class="ce-quiz-sub">Mobile : <b>${esc(THEMES[theme] || "non renseigné")}</b>${locked ? " · 🔒 lecture seule" : ""}</p>
       ${theme ? "" : `<p class="ce-hint">Renseigne le thème de l'élève pour des repères propres à son mobile.</p>`}
-      ${levels.map(l => `<div class="ce-quiz-level"><h4><span class="ce-quiz-d d${l.level}">D${l.level}</span> ${esc(l.title)}</h4>
+      <p class="ce-hint ce-quiz-how">On commence par le degré 4. Si une réponse n'est pas satisfaisante, on descend au degré inférieur.</p>
+      ${shown.map(lv => levels.find(l => l.level === lv)).map((l, i) => `<div class="ce-quiz-level" data-level="${l.level}">${i ? `<p class="ce-quiz-down">↓ Une réponse du degré ${l.level + 1} n'est pas satisfaisante : questions du degré ${l.level}.</p>` : ""}<h4><span class="ce-quiz-d d${l.level}">D${l.level}</span> ${esc(l.title)}</h4>
         ${picked.filter(it => it.level === l.level).map(it => `<div class="ce-quiz-item" data-q="${it.id}" data-topic="${it.topic}">
           <div class="ce-quiz-q"><b>💬 ${esc(it.q)}</b>${expectHTML(it.ok[theme] || it.ok[""])}
             ${locked ? "" : `<button type="button" class="ce-quiz-swap" data-act="quiz-swap" data-crit="${crit.id}" data-topic="${it.topic}" title="Poser une autre question sur ce point">🔄 Autre question</button>`}</div>
           <div class="ce-quiz-ans">${btn(it, true, "✔ Oui")}${btn(it, false, "✘ Non")}</div></div>`).join("")}</div>`).join("")}
       <div class="ce-quiz-result">${prop
         ? `<span>Degré proposé : <b>${esc(stepText(crit, prop))} pt</b></span>${same ? `<span class="ce-quiz-ok">✔ Placé sur le curseur</span>` : `<button type="button" class="ce-primary" data-act="quiz-place" data-crit="${crit.id}"${locked ? " disabled" : ""}>Placer sur le curseur</button>`}`
-        : `<span class="ce-hint">${answered ? "Réponds aux questions restantes du niveau en cours pour obtenir un degré." : "Pose les questions et note chaque réponse."}</span>`}</div>
+        : `<span class="ce-hint">${answered ? "Réponds aux deux questions du degré en cours." : "Pose les deux questions du degré 4 et note chaque réponse."}</span>`}</div>
     </div>`;
   }
 
@@ -507,7 +510,8 @@
 
   /* Justification tirée des réponses : nombre de réponses satisfaisantes et ce qui manque. */
   function quizSummary(critId, a, pick) {
-    const items = C.quizPicked(critId, pick, a).filter(it => typeof a[it.id] === "boolean");
+    const shown = C.quizLevels(critId, a, pick);
+    const items = C.quizPicked(critId, pick, a).filter(it => shown.includes(it.level) && typeof a[it.id] === "boolean");
     const no = items.filter(it => !a[it.id]);
     return (`Entretien : ${items.length - no.length}/${items.length} réponses satisfaisantes.`
       + (no.length ? ` Non satisfait : ${no.map(it => it.q.replace(/\s*[?.]$/, "")).join(" ; ")}.` : "")).slice(0, C.NOTE_MAX);

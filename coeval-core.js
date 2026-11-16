@@ -274,26 +274,38 @@
     return out;
   }
 
-  /* Réponses {id: true|false} → degré et points proposés, ou null tant qu'il manque une réponse utile.
-     Seules comptent les questions retenues (une par compétence).
-     Degré = plus haut niveau entièrement satisfait (1 si le premier ne l'est pas).
-     Dans le degré : la part de réponses satisfaites au niveau suivant situe la note
-     (bas, milieu ou haut du degré) ; le degré 4 est placé en haut. */
-  function quizDegree(critId, answers, pick) {
-    const levels = QUIZ[critId], crit = critById(critId);
-    if (!levels || !crit) return null;
-    const a = answers || {};
-    const picked = quizPicked(critId, pick, a);
-    const at = lv => picked.filter(it => it.level === lv);
-    let deg = 1;
-    for (const l of levels) {
-      const items = at(l.level);
-      if (items.some(it => typeof a[it.id] !== "boolean")) return null;
-      if (items.every(it => a[it.id])) deg = l.level; else break;
+  /* Questionnement descendant : on pose d'abord les questions du degré 4 ; si elles sont
+     toutes satisfaites, l'élève est en degré 4. Sinon on pose celles du degré 3, et ainsi
+     de suite. Renvoie les niveaux à afficher (du plus haut au plus bas) : un niveau
+     s'ajoute quand le précédent est entièrement répondu sans être entièrement satisfait. */
+  function quizLevels(critId, answers, pick) {
+    const a = answers || {}, picked = quizPicked(critId, pick, a), out = [];
+    const levels = (QUIZ[critId] || []).map(l => l.level).sort((x, y) => y - x);
+    for (const lv of levels) {
+      out.push(lv);
+      const items = picked.filter(it => it.level === lv);
+      if (items.some(it => typeof a[it.id] !== "boolean") || items.every(it => a[it.id])) break;
     }
-    const next = at(deg + 1);
+    return out;
+  }
+
+  /* Réponses {id: true|false} → degré et points proposés, ou null tant qu'il manque une réponse utile.
+     Seules comptent les questions retenues, posées du degré 4 vers le degré 2.
+     Degré = premier niveau (en descendant) entièrement satisfait ; 1 si même le degré 2 ne l'est pas.
+     Dans le degré : la part de réponses satisfaites au niveau du dessus (déjà posé) situe la
+     note en bas, au milieu ou en haut du degré ; le degré 4 est placé en haut. */
+  function quizDegree(critId, answers, pick) {
+    const crit = critById(critId);
+    if (!QUIZ[critId] || !crit) return null;
+    const a = answers || {}, picked = quizPicked(critId, pick, a);
+    const shown = quizLevels(critId, a, pick), last = shown[shown.length - 1];
+    const at = lv => picked.filter(it => it.level === lv);
+    const items = at(last);
+    if (items.some(it => typeof a[it.id] !== "boolean")) return null;
+    const deg = items.every(it => a[it.id]) ? last : last - 1;
+    const above = deg === last ? at(last + 1) : items;
     const steps = stepsOf(crit.deg[deg - 1]);
-    const frac = next.length ? next.filter(it => a[it.id] === true).length / next.length : 1;
+    const frac = above.length ? above.filter(it => a[it.id] === true).length / above.length : 1;
     return {d:deg, v:steps[Math.round(frac * (steps.length - 1))]};
   }
 
@@ -1167,7 +1179,7 @@
 
   return {
     DATA_VERSION, FORMAT_VERSION, QR_PREFIX, PER_QR,
-    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, MOBILES, QUIZ, QUIZ_PER_LEVEL, quizItems, quizPicked, quizDraw, quizDegree, cleanQuiz, cleanPick, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
+    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, MOBILES, QUIZ, QUIZ_PER_LEVEL, quizItems, quizPicked, quizDraw, quizLevels, quizDegree, cleanQuiz, cleanPick, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
     uid, normName, q4, fmt, hash, clone, own, get, critById,
     inRange, degreeOf, stepsOf, descOf, degreeName, isValidValue, emptyEval, isFilled, scores, missingFields,
     encodeCell, decodeCell,
