@@ -146,8 +146,9 @@
      Questions posées par l'évaluateur à l'élève : comprend-il quel mobile il a
      choisi, quels paramètres il utilise, sa respiration, et dans quel but ?
      Chaque niveau (D2, D3, D4) regroupe des compétences ; chaque compétence a
-     plusieurs questions possibles. Pour chaque élève, une question par compétence
-     est tirée parmi les moins posées de l'épreuve : les questions tournent.
+     plusieurs questions possibles. Pour chaque élève, deux compétences par niveau
+     (QUIZ_PER_LEVEL) sont tirées parmi les moins abordées de l'épreuve, puis une
+     question pour chacune parmi les moins posées : les questions tournent.
      Un degré est atteint quand toutes les questions tirées de son niveau et des
      niveaux inférieurs sont satisfaites.
      « ok » = réponse attendue selon le thème ("" = sans thème renseigné) :
@@ -160,6 +161,7 @@
   const OK_BUT = {"":"Explique l'effet recherché sur son corps.", ...byMobile(m => m.but)};
   const OK_FEEL = {"":"Associe une donnée chiffrée (répétitions, charge, temps) et un ressenti (musculaire, cardio-respiratoire ou psychologique).",
     ...byMobile(m => [`Indicateurs : ${m.indicateurs}`, `Ressentis : ${m.ressentis}`, `Exemple : ${m.exemple}`])};
+  const QUIZ_PER_LEVEL = 2;
   const QUIZ = {
     regul:[
       {level:2, title:"Connaît son mobile, ses paramètres et sa respiration", topics:[
@@ -232,27 +234,41 @@
 
   const quizItems = critId => (QUIZ[critId] || []).flatMap(l => l.topics.flatMap(t => t.items.map(it => ({...it, level:l.level, topic:t.id}))));
 
-  /* Question retenue pour chaque compétence : celle tirée pour l'élève, sinon celle
-     déjà répondue, sinon la première. */
+  /* Questions retenues : par niveau, les compétences tirées pour l'élève (au plus
+     QUIZ_PER_LEVEL), complétées si besoin par celles déjà répondues puis par les
+     premières ; pour chacune, la question tirée, sinon celle déjà répondue, sinon la première. */
   function quizPicked(critId, pick, answers) {
     const p = pick || {}, a = answers || {};
-    return (QUIZ[critId] || []).flatMap(l => l.topics.map(t => {
-      const it = t.items.find(x => x.id === p[t.id]) || t.items.find(x => typeof a[x.id] === "boolean") || t.items[0];
-      return {...it, level:l.level, topic:t.id};
-    }));
+    const answered = t => t.items.some(x => typeof a[x.id] === "boolean");
+    return (QUIZ[critId] || []).flatMap(l => {
+      const chosen = [];
+      const add = t => { if (chosen.length < QUIZ_PER_LEVEL && !chosen.includes(t)) chosen.push(t); };
+      l.topics.filter(t => t.items.some(x => x.id === p[t.id])).forEach(add);
+      l.topics.filter(answered).forEach(add);
+      l.topics.forEach(add);
+      return l.topics.filter(t => chosen.includes(t)).map(t => {
+        const it = t.items.find(x => x.id === p[t.id]) || t.items.find(x => typeof a[x.id] === "boolean") || t.items[0];
+        return {...it, level:l.level, topic:t.id};
+      });
+    });
   }
 
-  /* Tirage : pour chaque compétence, une des questions les moins posées jusqu'ici
-     (used = {id: nombre de fois tirée}), au hasard parmi les ex æquo.
-     keep = {compétence: id} déjà fixées, conservées telles quelles. */
+  /* Tirage : par niveau, QUIZ_PER_LEVEL compétences parmi les moins abordées, puis pour
+     chacune une des questions les moins posées (used = {id: nombre de fois tirée}),
+     au hasard parmi les ex æquo. keep = {compétence: id} déjà fixées, conservées. */
   function quizDraw(critId, used, rand = Math.random, keep) {
     const out = {}, u = used || {};
-    (QUIZ[critId] || []).forEach(l => l.topics.forEach(t => {
-      if (keep && t.items.some(it => it.id === keep[t.id])) { out[t.id] = keep[t.id]; return; }
-      const min = Math.min(...t.items.map(it => u[it.id] || 0));
-      const pool = t.items.filter(it => (u[it.id] || 0) === min);
-      out[t.id] = pool[Math.floor(rand() * pool.length) % pool.length].id;
-    }));
+    const least = (list, score) => { const min = Math.min(...list.map(score)); const pool = list.filter(x => score(x) === min); return pool[Math.floor(rand() * pool.length) % pool.length]; };
+    (QUIZ[critId] || []).forEach(l => {
+      const kept = l.topics.filter(t => keep && t.items.some(it => it.id === keep[t.id])).slice(0, QUIZ_PER_LEVEL);
+      kept.forEach(t => { out[t.id] = keep[t.id]; });
+      let rest = l.topics.filter(t => !kept.includes(t));
+      for (let n = kept.length; n < QUIZ_PER_LEVEL && rest.length; n++) {
+        const t = least(rest, t => t.items.reduce((sum, it) => sum + (u[it.id] || 0), 0));
+        rest = rest.filter(x => x !== t);
+        out[t.id] = least(t.items, it => u[it.id] || 0).id;
+      }
+    });
     return out;
   }
 
@@ -1149,7 +1165,7 @@
 
   return {
     DATA_VERSION, FORMAT_VERSION, QR_PREFIX, PER_QR,
-    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, MOBILES, QUIZ, quizItems, quizPicked, quizDraw, quizDegree, cleanQuiz, cleanPick, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
+    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, MOBILES, QUIZ, QUIZ_PER_LEVEL, quizItems, quizPicked, quizDraw, quizDegree, cleanQuiz, cleanPick, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
     uid, normName, q4, fmt, hash, clone, own, get, critById,
     inRange, degreeOf, stepsOf, descOf, degreeName, isValidValue, emptyEval, isFilled, scores, missingFields,
     encodeCell, decodeCell,
