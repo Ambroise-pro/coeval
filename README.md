@@ -111,9 +111,9 @@ rythme, but recherché, ressentis et indicateurs, règles de régulation.
 
 | Mobile | Charge | Séries | Répétitions | Récupération | Rythme |
 |---|---|---|---|---|---|
-| Puissance | 50 à 70 % RM | 3 à 5 | 6 à 8 | 2 à 3 min | explosif à la montée |
-| Tonification | 40 à 60 % RM | 3 à 5 | 15 à 25 (ou plus) | 30 s à 1 min | régulier, continu |
-| Volume | 70 à 85 % RM | 4 à 6 | 8 à 12 | 1 min à 1 min 30 | lent et contrôlé |
+| Puissance | 80 à 90 % RM | 3 à 5 | 4 à 8 | 2 à 3 min | explosif à la montée |
+| Tonification | 40 à 60 % RM | 4 à 6 | 15 à 25 | 30 s à 1 min | régulier, continu |
+| Volume | 60 à 80 % RM | 5 à 7 | 8 à 15 | 1 min à 1 min 30 | lent et contrôlé |
 
 Ces repères se modifient dans `MOBILES`, et les questions dans `QUIZ`
 (`coeval-core.js`), sans toucher à la grille.

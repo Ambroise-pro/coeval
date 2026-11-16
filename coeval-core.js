@@ -88,21 +88,21 @@
 
   /* =========================
      REPÈRES PAR MOBILE — réponses attendues de l'élève
-     Fourchettes usuelles en musculation scolaire ; à ajuster ici si l'équipe
-     EPS retient d'autres valeurs (la grille n'est pas concernée).
+     Paramètres de validation retenus par l'équipe EPS (séries, répétitions,
+     intensité) ; à ajuster ici (la grille n'est pas concernée).
      RM = répétition maximale (charge soulevable une seule fois).
   ========================= */
   const MOBILES = {
     "1":{nom:"Puissance", but:"Produire le plus de force possible le plus vite possible : gagner en explosivité, en tonicité, en vitesse.",
-      charge:"50 à 70 % de la RM", series:"3 à 5", reps:"6 à 8", recup:"2 à 3 min (récupération complète)",
+      charge:"80 à 90 % de la RM", series:"3 à 5", reps:"4 à 8", recup:"2 à 3 min (récupération complète)",
       rythme:"Explosif à la montée, contrôlé à la descente",
-      pourquoi:"Une charge moyenne laisse bouger vite ; peu de répétitions et une longue récupération gardent la même vitesse jusqu'à la dernière.",
+      pourquoi:"Une charge lourde sur peu de répétitions, poussée le plus vite possible, sollicite la force maximale ; la longue récupération garde la même intensité à chaque série.",
       ressentis:"Fraîcheur, vitesse conservée sur toutes les répétitions, pas de brûlure ni d'essoufflement marqués.",
       indicateurs:"Vitesse d'exécution, répétitions réalisées / prévues, fraîcheur musculaire.",
       regul:"Toutes les répétitions rapides et faciles → augmenter la charge. La vitesse chute ou des répétitions manquent → alléger ou allonger la récupération.",
       exemple:"« 6 répétitions sur 6, toujours rapides, je me sens frais : j'ajoute 5 kg. »"},
     "2":{nom:"Tonification", but:"Tenir un effort prolongé : endurance de force, affiner et raffermir la silhouette.",
-      charge:"40 à 60 % de la RM", series:"3 à 5", reps:"15 à 25 (ou plus)", recup:"30 s à 1 min",
+      charge:"40 à 60 % de la RM", series:"4 à 6", reps:"15 à 25", recup:"30 s à 1 min",
       rythme:"Régulier et continu, sans temps d'arrêt",
       pourquoi:"Une charge légère permet de longues séries ; la récupération courte entretient la fatigue pour travailler l'endurance du muscle.",
       ressentis:"Brûlure locale supportable, chaleur, essoufflement modéré en fin de série.",
@@ -110,13 +110,13 @@
       regul:"Série complète facile → ajouter des répétitions ou réduire la récupération. Arrêt avant la fin → alléger ou allonger un peu la récupération.",
       exemple:"« 20 répétitions sans arrêt mais brûlure forte dès la 12e : je garde la charge et j'allonge la récupération. »"},
     "3":{nom:"Volume", but:"Augmenter le volume musculaire (prise de masse) par une fatigue locale importante.",
-      charge:"70 à 85 % de la RM", series:"4 à 6", reps:"8 à 12", recup:"1 min à 1 min 30",
+      charge:"60 à 80 % de la RM", series:"5 à 7", reps:"8 à 15", recup:"1 min à 1 min 30",
       rythme:"Lent et contrôlé (ex. 2 s à la montée, 2 s à la descente)",
-      pourquoi:"Une charge lourde menée près de l'échec sur 8 à 12 répétitions, avec une récupération incomplète, crée la fatigue qui fait grossir le muscle.",
+      pourquoi:"Une charge lourde menée près de l'échec sur 8 à 15 répétitions, avec une récupération incomplète, crée la fatigue qui fait grossir le muscle.",
       ressentis:"Congestion (muscle « gonflé »), brûlure, dernières répétitions très difficiles.",
       indicateurs:"Répétitions réalisées / prévues, proximité de l'échec, congestion.",
-      regul:"Plus de 12 répétitions ou série facile → augmenter la charge. Moins de 8 répétitions → baisser la charge.",
-      exemple:"« 12 répétitions avec deux de réserve et peu de congestion : j'ajoute 2,5 kg. »"}
+      regul:"Plus de 15 répétitions ou série facile → augmenter la charge. Moins de 8 répétitions → baisser la charge.",
+      exemple:"« 15 répétitions avec deux de réserve et peu de congestion : j'ajoute 2,5 kg. »"}
   };
   const byMobile = f => { const o = {}; Object.keys(MOBILES).forEach(t => { o[t] = f(MOBILES[t]); }); return o; };
   const paramsText = m => [`Charge : ${m.charge}`, `Séries : ${m.series}`, `Répétitions : ${m.reps}`, `Récupération : ${m.recup}`, `Rythme : ${m.rythme}`];

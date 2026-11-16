@@ -452,7 +452,7 @@ test("questions d'entretien : degré proposé selon les réponses, réponses net
     ["but", "charge", "series", "reps", "recup", "rythme", "pourquoi", "ressentis", "indicateurs", "regul", "exemple"].forEach(k => assert.ok(m[k], `${m.nom}.${k}`));
     assert.match(m.charge, /% de la RM$/);
   });
-  assert.equal(C.quizItems("regul").find(it => it.id === "q2b").ok["3"][0], "Charge : 70 à 85\u00a0% de la RM");
+  assert.equal(C.quizItems("regul").find(it => it.id === "q2b").ok["3"][0], "Charge : 60 à 80\u00a0% de la RM");
   const ep = {candidates:[], mine:{a:{v:{}, d:{}, quiz:{regul:{q2a:true, bad:true, q3a:"oui"}, autre:{x:true}}}, b:{v:{}, d:{}, quiz:{regul:{}}}}};
   C.migrateEpreuve(ep, "Moi");
   assert.deepEqual(ep.mine.a.quiz, {regul:{q2a:true}});
