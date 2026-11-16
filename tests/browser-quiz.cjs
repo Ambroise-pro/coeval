@@ -11,6 +11,8 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
     const p = await b.newPage({viewport: {width: w, height: h}});
     p.on('pageerror', e => errs.push(`${label}: ${e.message}`));
     p.on('dialog', d => d.accept());
+    const openList = async () => { const b = p.locator('[data-act=list-open]'); if (await b.isVisible() && !(await p.evaluate(() => document.body.classList.contains('ce-list-open')))) await b.click(); };
+    const pick = async name => { await openList(); await p.locator('#ceSearch').fill(name); await p.locator('.ce-cand').first().click(); const x = p.locator('[data-act=crit-expand-all]'); if (await x.count()) await x.click(); };
     try {
       await p.goto('http://127.0.0.1:8000/');
       await p.evaluate(() => localStorage.clear());
@@ -29,8 +31,7 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       });
       check(`[${label}] élève de test trouvé`, !!cand, cand && cand.name);
       await p.selectOption('#ceAfl', '');
-      await p.locator('#ceSearch').fill(cand.name.split(' ')[0]);
-      await p.locator('.ce-cand').first().click();
+      await pick(cand.name.split(' ')[0]);
       const keys = await p.locator('.ce-slide-crit[data-crit=param] .ce-degbox-key').allTextContents();
       check(`[${label}] Choix des paramètres : repère simplifié en gras dans chaque degré`, keys.length === 4 && keys[2].includes('75 à 90'), keys.join(' | '));
       const openBtn = p.locator('.ce-slide-crit[data-crit=regul] [data-act=quiz-open]');
@@ -82,8 +83,7 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       check(`[${label}] placé en D4 sans écraser la justification`, ev2.d.regul === 4 && ev2.v.regul === 2 && ev2.notes.regul === ev.notes.regul);
       await p.reload();
       await p.locator('[data-tab=eval]').click();
-      await p.locator('#ceSearch').fill(cand.name.split(' ')[0]);
-      await p.locator('.ce-cand').first().click();
+      await pick(cand.name.split(' ')[0]);
       await p.locator('.ce-slide-crit[data-crit=regul] [data-act=quiz-open]').click();
       check(`[${label}] réponses affichées après rechargement`, await p.locator('#ceDialog .ce-quiz-ans button.on').count() === 2);
       await p.locator('#ceDialog [data-act=quiz-close]').click();
@@ -101,8 +101,7 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       // Rotation : l'élève suivant reçoit d'autres questions.
       const other = await p.evaluate(id => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId);
         const c = e.candidates.find(c => c.id !== id && (!c.situation || c.situation === 'present') && !e.mine[c.id]?.done && !e.mine[c.id]?.quizPick); return c && c.name; }, cand.id);
-      await p.locator('#ceSearch').fill(other.split(' ')[0]);
-      await p.locator('.ce-cand').first().click();
+      await pick(other.split(' ')[0]);
       await p.locator('.ce-slide-crit[data-crit=regul] [data-act=quiz-open]').click();
       const picks = await p.evaluate(() => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); return Object.values(e.mine).map(m => m?.quizPick?.regul).filter(Boolean); });
       const differ = picks.length === 2 && Object.values(picks[0]).every(id => !Object.values(picks[1]).includes(id));

@@ -38,7 +38,7 @@ const assert=require('node:assert/strict');
     assert.deepEqual(await read(),old,'cancelled touch does not change the stored mark');
    }
    // Locked sheets remain protected.
-   await page.locator('#ceSearch').fill('ARNAUD');const locked=page.locator('.ce-slider').first();assert.equal(await locked.isDisabled(),true);
+   await page.locator('#ceSearch').fill('ARNAUD');assert.equal(await page.locator('.ce-slider').count(),0,'locked sheet starts folded');await page.locator('[data-act="crit-expand-all"]').click();const locked=page.locator('.ce-slider').first();assert.equal(await locked.isDisabled(),true);
    assert.deepEqual(errors,[]);await context.close();
   }
   console.log('Slider checks passed: first click, first touch, reposition, captured drag, keyboard, cancellation, locked sheet.');

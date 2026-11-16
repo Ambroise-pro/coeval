@@ -27,7 +27,7 @@ const URL = 'http://127.0.0.1:8000/';
     });
     await p.reload();
     await p.locator('[data-tab=eval]').click();
-    check('Bouton « Terminer l’évaluation AFL1 »', (await p.textContent('[data-act=finish]')).includes("Terminer l'évaluation AFL1"));
+    check('Bouton « Terminer AFL1 » dans la barre du bas', (await p.textContent('.ce-actionbar [data-act=finish]')).includes("Terminer AFL1"));
     await p.click('[data-act=finish]');
     const dlg = await p.textContent('#ceDialog');
     check('Pas bloqué par l’AFL2/AFL3 manquante', dlg.includes("Terminer l'évaluation AFL1 de DUPONT") && !dlg.includes('incomplète') && dlg.includes('Cela ne bloque pas'), dlg.slice(0, 120).replace(/\s+/g, ' '));

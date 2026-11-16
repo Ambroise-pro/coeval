@@ -11,6 +11,10 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
     const p = await b.newPage({viewport: {width: w, height: h}});
     p.on('pageerror', e => errs.push(`${label}: ${e.message}`));
     p.on('dialog', d => d.accept());
+    // Liste en tiroir (portrait, téléphone) et critères notés repliés.
+    const openList = async () => { const b = p.locator('[data-act=list-open]'); if (await b.isVisible() && !(await p.evaluate(() => document.body.classList.contains('ce-list-open')))) await b.click(); };
+    const expandAll = async () => { const b = p.locator('[data-act=crit-expand-all]'); if (await b.count()) await b.click(); };
+    const pick = async name => { await openList(); await p.locator('#ceSearch').fill(name); await p.locator('.ce-cand').first().click(); await expandAll(); };
     const ep = () => p.evaluate(() => { const db = CoEval.db; return db.epreuves.find(e => e.id === db.activeId); });
     try {
       await p.goto('http://127.0.0.1:8000/');
@@ -48,6 +52,7 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       // L'élève noté reste affiché tant qu'on ne passe pas à un autre.
       await p.selectOption('#ceAfl', 'afl1-todo');
       const before = await p.locator('.ce-cand').count();
+      await expandAll();
       for (const id of ['amp', 'resp', 'post', 'param', 'ress', 'regul']) {
         const sl = p.locator(`.ce-slider[data-crit=${id}]`);
         await sl.evaluate(e => e.scrollIntoView({block: 'center'}));
@@ -62,22 +67,21 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       await p.locator('[data-act=step][data-step="1"]').filter({visible: true}).first().click();
       await p.waitForTimeout(150);
       check(`[${label}] retiré en passant à l'élève suivant`, (await p.locator('.ce-cand').count()) === before - 1);
+      await openList();
       await p.locator('[data-act=clear-filters]').filter({visible: true}).first().click();
       check(`[${label}] « Afficher tous les élèves » efface le filtre AFL`, (await p.$eval('#ceAfl', s => s.value)) === '');
 
       // Justification
-      await p.locator('#ceSearch').fill('SIMON');
-      await p.locator('.ce-cand').first().click();
+      await pick('SIMON');
       const just = p.locator('.ce-slide-crit[data-crit=post] .ce-just');
-      await just.locator('summary').click();
+      await p.locator('.ce-slide-crit[data-crit=post] [data-act=note-toggle]').click();
       await just.locator('textarea').fill('1,75 et non 2 : une compensation lombaire en fin de série');
       await p.waitForTimeout(100);
       const simon = async () => { const e = await ep(); const c = e.candidates.find(x => x.name.startsWith('SIMON')); return e.mine[c.id]; };
       check(`[${label}] justification enregistrée`, (await simon()).notes?.post === '1,75 et non 2 : une compensation lombaire en fin de série');
       await p.reload();
       await p.locator('[data-tab=eval]').click();
-      await p.locator('#ceSearch').fill('SIMON');
-      await p.locator('.ce-cand').first().click();
+      await pick('SIMON');
       check(`[${label}] justification conservée et affichée`, (await p.$eval('.ce-slide-crit[data-crit=post] .ce-just textarea', t => t.value)).includes('compensation lombaire')
         && await p.locator('.ce-slide-crit[data-crit=post] .ce-just[open]').count() === 1);
 

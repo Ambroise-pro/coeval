@@ -36,6 +36,9 @@
   let evalFilter = "all";
   // Après un changement de filtre, l'élève ouvert n'est plus gardé dans la liste.
   let refilter = true;
+  // Ergonomie tablette : tiroir de la liste, critères notés repliés, justification ouverte.
+  let listOpen = false;
+  const fold = {cand:null, open:new Set(), notes:new Set()};
   const openCrits = {};
   let stopCamera = null;
   let shareIndex = 0;
@@ -201,12 +204,17 @@
     const box = $("ceNotice");
     if (!box) return;
     box.innerHTML = `${storageError ? '<div class="ce-storage-error" role="alert"><b>Enregistrement impossible sur cet appareil.</b> Garde cette page ouverte et exporte immédiatement une copie de secours. <button type="button" data-act="backup">Exporter l’épreuve</button></div>' : ''}
-      ${ep && db.me ? `<div class="ce-notice"><span>${storageError?'Données en mémoire uniquement':'Enregistré sur cet appareil'} · ${offlineReady?'Disponible hors connexion':'Hors connexion : à vérifier'}</span><button type="button" data-act="readiness">Vérifier</button><button type="button" data-act="backup">Copie de secours${unsaved(ep)?' à actualiser':''}</button></div>` : ''}`;
+      ${ep && db.me && (tab === "eval" || tab === "prep") ? `<div class="ce-notice ce-notice-mini"><button type="button" class="ce-status${storageError ? " bad" : offlineReady ? " ok" : ""}" data-act="readiness" title="Vérifier l'enregistrement et le hors connexion">${storageError ? "⚠ En mémoire seulement" : "✓ Enregistré"}${offlineReady ? " · hors connexion" : ""}</button><button type="button" class="ce-status${unsaved(ep) ? " warn" : ""}" data-act="backup" title="Copie de secours">💾 Copie${unsaved(ep) ? " à actualiser" : ""}</button></div>`
+      : ep && db.me ? `<div class="ce-notice"><span>${storageError?'Données en mémoire uniquement':'Enregistré sur cet appareil'} · ${offlineReady?'Disponible hors connexion':'Hors connexion : à vérifier'}</span><button type="button" data-act="readiness">Vérifier</button><button type="button" data-act="backup">Copie de secours${unsaved(ep)?' à actualiser':''}</button></div>` : ''}`;
   }
 
   function render() {
     if (stopCamera && tab !== "share" && tab !== "cross") { stopCamera(); stopCamera = null; }
     document.body.classList.toggle("ce-passage", !!ui.passage && tab === "eval");
+    const sheetTab = tab === "eval" || tab === "prep";
+    if (!sheetTab) listOpen = false;
+    document.body.classList.toggle("ce-compact", sheetTab);
+    document.body.classList.toggle("ce-list-open", listOpen && sheetTab);
     renderBar();
     const ep = active();
     renderNotice(ep);
@@ -273,6 +281,7 @@
     const ev = evalOf(ep, cand.id);
     const s = C.scores(ev);
     const idx = visible.indexOf(cand);
+    if (fold.cand !== cand.id) { fold.cand = cand.id; fold.open = new Set(); fold.notes = new Set(); }
     // « Terminer » ne verrouille que l'AFL1 : choix et AFL2/AFL3 restent modifiables dans « Préparer ».
     const locked = (!!ev.done && !prepScope) || !W.eligible(cand);
     const dis = locked ? " disabled" : "";
@@ -322,22 +331,34 @@
       groups += pre?.crits.includes(crit.id) ? preCritHTML(crit, ev) : critHTML(crit, ev, locked);
     });
     groups += "</div>";
+    const folded = GRID.filter(crit => scopeIds.includes(crit.id) && !pre?.crits.includes(crit.id) && isFolded(crit, ev)).length;
+    const foldBar = folded ? `<div class="ce-fold-bar"><span>${folded} critère(s) noté(s) replié(s)</span><button type="button" class="ce-link" data-act="crit-expand-all">Tout déplier</button></div>` : "";
+    const doneCount = progress.filter(x => x.p.state === (prepScope ? "complete" : "done")).length;
 
     // Repris d'une préparation ou terminée : signalé dans la ligne des choix (place gagnée pour l'AFL1).
     const preBar = ev.pre?.unlocked && !locked ? `<div class="ce-lock open">✏️ Données de ${esc(ev.pre.by)} modifiables.</div>` : "";
     const lockBar = !locked && ev.initial ? `<div class="ce-lock open">✏️ Fiche rouverte (modifications tracées).</div>` : "";
     const part = (val, p) => val != null ? fmt(val) : p != null ? fmt(p) + "…" : "—";
 
+    const undoOk = lastInput?.ep === ep.id && lastInput?.cand === cand.id && lastInput.after === JSON.stringify(ev);
+    const nextDis = idx < 0 || idx === visible.length - 1 ? " disabled" : "";
     main.innerHTML = `<div class="ce-eval">
-      <aside class="ce-list">${listTop}${listControls(ep)}<div class="ce-pg-legend">${legend}</div>${list || "<p>Aucun élève pour ces filtres.</p>"}</aside>
-      <section class="ce-sheet">
+      <div class="ce-list-backdrop" data-act="list-close" aria-hidden="true"></div>
+      <aside class="ce-list" aria-label="Liste des élèves"><button type="button" class="ce-list-close" data-act="list-close">✕ Fermer la liste</button>${listTop}${listControls(ep)}<div class="ce-pg-legend">${legend}</div>${list || "<p>Aucun élève pour ces filtres.</p>"}</aside>
+      <section class="ce-sheet${locked ? " locked" : ""}">
         ${!visible.length?'<p class="ce-warn">Aucun résultat : la fiche ci-dessous reste celle de l’élève précédemment sélectionné.</p>':""}<div class="ce-card ce-cand-head">
           <div class="ce-nav">
             <button type="button" data-act="step" data-step="-1" aria-label="Candidat précédent" ${idx <= 0 ? "disabled" : ""}>←</button>
+            <button type="button" class="ce-list-btn" data-act="list-open" aria-label="Liste des élèves : ${doneCount} sur ${ep.candidates.length} ${prepScope ? "prêtes" : "terminées"}">👥 <span>${doneCount}/${ep.candidates.length}</span></button>
             <h2>${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</h2>
-            <button type="button" data-act="step" data-step="1" aria-label="Candidat suivant" ${idx < 0 || idx === visible.length - 1 ? "disabled" : ""}>→</button>
+            <button type="button" class="ce-icon" data-act="undo-input" title="Annuler la dernière saisie" aria-label="Annuler la dernière saisie"${undoOk ? "" : " disabled"}>↶</button>
+            <details class="ce-menu"><summary aria-label="Autres actions" title="Autres actions">⋯</summary><div class="ce-menu-pop">
+              <button type="button" data-act="edit-candidate" data-id="${esc(cand.id)}">${W.SITUATIONS[cand.situation||'present']} · Modifier</button>
+              ${!prepScope ? `<button type="button" data-act="passage" aria-pressed="${!!ui.passage}">${ui.passage ? "Quitter le mode Passage" : "Mode Passage"}</button>
+              <button type="button" data-act="single-qr">📱 QR de ce candidat</button>` : ""}
+            </div></details>
+            <button type="button" data-act="step" data-step="1" aria-label="Candidat suivant"${nextDis}>→</button>
           </div>
-          <div class="ce-actions"><button type="button" data-act="edit-candidate" data-id="${esc(cand.id)}">${W.SITUATIONS[cand.situation||'present']} · Modifier</button>${!prepScope?`<button type="button" data-act="passage" aria-pressed="${!!ui.passage}">${ui.passage?'Quitter le mode Passage':'Mode Passage'}</button>`:''}<button type="button" data-act="undo-input"${lastInput?.ep===ep.id&&lastInput?.cand===cand.id&&lastInput.after===JSON.stringify(ev)?'':' disabled'}>Annuler la dernière saisie</button></div>
           ${!W.eligible(cand)?'<p class="ce-warn">Situation particulière : les notes sont conservées. Réactive « À évaluer » pour reprendre le passage.</p>':''}
           ${lockBar}
           ${preBar}
@@ -346,31 +367,39 @@
           ${choice("role", {partenaire:"Partenaire", juge:"Juge"}, "Rôle")}
           ${allSet && !prepScope ? `<button type="button" class="ce-link" data-act="edit-choices">✓ Terminé</button>` : ""}`}
         </div>
+        ${foldBar}
         ${groups}
-        ${prepScope ? `<div class="ce-card">
-          <button type="button" class="ce-primary ce-wide" data-act="step" data-step="1"${idx < 0 || idx === visible.length - 1 ? " disabled" : ""}>Élève suivant →</button>
-        </div>
-        <div class="ce-total">
-          <span>AFL2 <b>${part(s.afl2, s.afl2p)}</b>/${SPLITS[ev.split]?.[0] ?? "?"}</span>
-          <span>AFL3 <b>${part(s.afl3, s.afl3p)}</b>/${SPLITS[ev.split]?.[1] ?? "?"}</span>
-          <strong>${scopeProgress(ev, "prep").state === "complete" ? "✓ Préparation complète" : "Préparation " + scopeProgress(ev, "prep").filled + "/6"}</strong>
-        </div>` : `<div class="ce-card">
+        ${prepScope ? `<div class="ce-total ce-actionbar">
+          <div class="ce-total-scores">
+            <span>AFL2 <b>${part(s.afl2, s.afl2p)}</b>/${SPLITS[ev.split]?.[0] ?? "?"}</span>
+            <span>AFL3 <b>${part(s.afl3, s.afl3p)}</b>/${SPLITS[ev.split]?.[1] ?? "?"}</span>
+            <strong>${scopeProgress(ev, "prep").state === "complete" ? "✓ Préparation complète" : "Préparation " + scopeProgress(ev, "prep").filled + "/6"}</strong>
+          </div>
+          <div class="ce-total-actions"><button type="button" class="ce-next" data-act="step" data-step="1"${nextDis}>Élève suivant →</button></div>
+        </div>` : `<div class="ce-card ce-sheet-end">
           ${!locked && C.missingFields(ev).length?`<p class="ce-hint">À compléter : ${C.missingFields(ev).map(esc).join(', ')}.</p>`:''}
-          ${locked ? "" : `<button type="button" class="ce-primary ce-wide" data-act="finish">✔ Terminer l'évaluation AFL1</button>`}
           <details class="ce-more"${ev.comment ? " open" : ""}><summary>💬 Remarque${ev.comment ? " (1)" : ""}</summary>
             <textarea data-field="comment" rows="2" aria-label="Remarque"${locked ? " readonly" : ""}>${esc(ev.comment)}</textarea></details>
-          <button type="button" class="ce-link" data-act="single-qr">📱 QR de ce candidat</button>
         </div>
-        <div class="ce-total">
-          <span>AFL1 <b>${part(s.afl1, s.afl1p)}</b>/12</span>
-          <span>AFL2 <b>${part(s.afl2, s.afl2p)}</b>/${SPLITS[ev.split]?.[0] ?? "?"}</span>
-          <span>AFL3 <b>${part(s.afl3, s.afl3p)}</b>/${SPLITS[ev.split]?.[1] ?? "?"}</span>
-          <strong>${s.complete ? fmt(s.total) + " / 20" : ev.split ? fmt(s.partial) + " / 20 · incomplet" : "Choisir la répartition"}</strong>
-          <small>AFL1 ${scopeProgress(ev, "afl1").filled}/6</small>
+        <div class="ce-total ce-actionbar">
+          <div class="ce-total-scores">
+            <span>AFL1 <b>${part(s.afl1, s.afl1p)}</b>/12</span>
+            <span>AFL2 <b>${part(s.afl2, s.afl2p)}</b>/${SPLITS[ev.split]?.[0] ?? "?"}</span>
+            <span>AFL3 <b>${part(s.afl3, s.afl3p)}</b>/${SPLITS[ev.split]?.[1] ?? "?"}</span>
+            <strong>${s.complete ? fmt(s.total) + " / 20" : ev.split ? fmt(s.partial) + " / 20 · incomplet" : "Choisir la répartition"}</strong>
+            <small>AFL1 ${scopeProgress(ev, "afl1").filled}/6</small>
+          </div>
+          <div class="ce-total-actions">
+            ${locked ? "" : `<button type="button" class="ce-primary" data-act="finish">✔ Terminer AFL1</button>`}
+            <button type="button" class="ce-next" data-act="step" data-step="1"${nextDis}>Suivant →</button>
+          </div>
         </div>`}
       </section>
     </div>`;
   }
+
+  /* Critère noté et non rouvert : affiché sur une ligne (on voit ce qui reste à noter). */
+  const isFolded = (crit, ev) => ev.v[crit.id] != null && !fold.open.has(crit.id) && !!C.descOf(crit, ev.role);
 
   /* Curseur par critère : ses crans sont les points de chaque degré, degré après degré.
      Une valeur commune à deux degrés (ex. 0,25 en D1 et en D2) donne deux crans distincts.
@@ -400,6 +429,15 @@
     });
   }
 
+  /* Libellés sous le curseur : pas de doublon à la frontière de deux degrés ; sur une
+     échelle longue (plus de 3 crans par degré), seulement les bornes de chaque degré.
+     La note choisie reste toujours affichée. */
+  function showPt(steps, k) {
+    const st = steps[k], own = steps.filter(x => x.d === st.d), j = own.indexOf(st);
+    if (k > 0 && steps[k - 1].v === st.v) return false;
+    return own.length <= 3 || j === 0 || j === own.length - 1;
+  }
+
   const stepText = (crit, st) => `${crit.names ? crit.names[st.d - 1] : "D" + st.d} · ${fmt(st.v)}`;
 
   function sliderHTML(crit, ev, value, deg, desc, recheck, locked) {
@@ -411,12 +449,13 @@
     const gradient = `linear-gradient(90deg,${colors.map((c, i) => `${c} ${i * 25}%,${c} ${(i + 1) * 25}%`).join(",")})`;
     const cur = idx >= 0 ? steps[idx] : null;
     return `<div class="ce-crit ce-slide-crit${value != null ? " filled" : ""}" data-crit="${crit.id}">
-      <div class="ce-crit-head"><b>${esc(crit.label)}</b><span><strong class="ce-slide-val">${cur ? esc(stepText(crit, cur)) : "à noter"}</strong> /${crit.max}</span></div>
+      <div class="ce-crit-head"><b>${esc(crit.label)}</b><button type="button" class="ce-just-btn${ev.notes?.[crit.id] ? " has" : ""}" data-act="note-toggle" data-crit="${crit.id}" aria-label="Justifier la note · ${esc(crit.label)}" title="Justifier la note">✎</button>
+        <span class="ce-crit-val"><strong class="ce-slide-val">${cur ? esc(stepText(crit, cur)) : "à noter"}</strong> /${crit.max}</span>${value != null ? `<button type="button" class="ce-fold-btn" data-act="crit-collapse" data-crit="${crit.id}" aria-label="Replier · ${esc(crit.label)}" title="Replier">▴</button>` : ""}</div>
       ${recheck}
       ${degBoxes(crit, desc, deg)}
       <div class="ce-slide${cur ? ` d${cur.d}` : " unset"}">
         <div class="ce-slide-track" style="background:${gradient}">${steps.map((st, k) => `<span class="ce-tick" style="left:${pos(k)}%"></span>`).join("")}</div>
-        <div class="ce-slide-pts" aria-hidden="true">${steps.map((st, k) => `<span class="d${st.d}${k === idx ? " on" : ""}" data-k="${k}" style="left:${pos(k)}%">${fmt(st.v)}</span>`).join("")}</div>
+        <div class="ce-slide-pts" aria-hidden="true">${steps.map((st, k) => `<span class="d${st.d}${k === idx ? " on" : ""}${showPt(steps, k) ? "" : " hide"}" data-k="${k}" style="left:${pos(k)}%">${fmt(st.v)}</span>`).join("")}</div>
         <input type="range" class="ce-slider" min="0" max="1000" step="1" value="${P[idx >= 0 ? idx : 0]}" data-crit="${crit.id}" data-idx="${idx >= 0 ? idx : 0}"
           data-pos="${P.join(",")}" data-steps="${steps.map(st => st.d + ":" + st.v).join(",")}" aria-label="${esc(crit.label)}" aria-valuetext="${cur ? esc(stepText(crit, cur)) + " point(s)" : "non noté"}"${locked ? " disabled" : ""}>
       </div>
@@ -521,7 +560,7 @@
   /* Justification facultative de la note choisie dans le degré (une phrase par critère). */
   function justifHTML(crit, ev, locked) {
     const note = ev.notes?.[crit.id] || "";
-    return `<details class="ce-just"${note ? " open" : ""}><summary>✎ ${note ? "Justification" : "Justifier la note"}</summary>
+    return `<details class="ce-just" data-crit="${crit.id}"${note || fold.notes.has(crit.id) ? " open" : ""}><summary>✎ ${note ? "Justification" : "Justifier la note"}</summary>
       <textarea data-act="crit-note" data-crit="${crit.id}" rows="2" maxlength="${C.NOTE_MAX}" aria-label="Justification · ${esc(crit.label)}"
         placeholder="Ex. 1,25 et non 1 : charge adaptée mais régulation tardive"${locked ? " readonly" : ""}>${esc(note)}</textarea></details>`;
   }
@@ -577,6 +616,14 @@
     render();
     if (focused) [...document.querySelectorAll(".ce-slider")].find(el => el.dataset.crit === input.dataset.crit)?.focus({preventScroll:true});
     window.scrollTo({top:y});
+    flashSaved(input.dataset.crit);
+  }
+
+  /* Retour discret après un enregistrement : la note clignote, petite vibration si possible. */
+  function flashSaved(critId) {
+    const box = document.querySelector(`.ce-slide-crit[data-crit="${critId}"]`);
+    if (box) { box.classList.remove("ce-saved"); void box.offsetWidth; box.classList.add("ce-saved"); setTimeout(() => box.classList.remove("ce-saved"), 900); }
+    try { navigator.vibrate?.(12); } catch (e) {}
   }
 
   /* Place la fiche de l'élève en haut de l'écran : l'AFL1 se note sans défiler. */
@@ -594,8 +641,17 @@
       return `<div class="ce-crit"><div class="ce-crit-head"><b>${esc(crit.label)}</b><span>${value != null ? `<strong>${fmt(value)}</strong>` : "—"} /${crit.max}</span></div>
         <p class="ce-hint">Choisis d'abord le rôle AFL3 (partenaire ou juge) en haut de la fiche.</p></div>`;
     }
+    if (isFolded(crit, ev)) {
+      return `<div class="ce-crit ce-slide-crit filled folded" data-crit="${crit.id}">
+        <button type="button" class="ce-crit-sum" data-act="crit-expand" data-crit="${crit.id}" aria-expanded="false" title="Déplier">
+          <b>${esc(crit.label)}</b>${ev.notes?.[crit.id] ? `<span class="ce-crit-sum-note" title="Justification">✎</span>` : ""}
+          <span class="ce-crit-sum-val d${deg}">${esc(degreeLabel(crit, deg))} · ${fmt(value)}<small>/${crit.max}</small></span><span class="ce-chev" aria-hidden="true">▾</span></button>
+        ${recheck}</div>`;
+    }
     return sliderHTML(crit, ev, value, deg, desc, recheck, locked);
   }
+
+  const degreeLabel = (crit, deg) => crit.names ? crit.names[deg - 1] : "D" + deg;
 
   /* Harmonisation : les descriptions accompagnent toujours le choix du degré. */
   function degButtons(crit, desc, selected, act, dis) {
@@ -626,6 +682,7 @@
     const crit = C.critById(critId);
     const before = ev.v[critId] != null ? `D${C.degreeOf(crit, ev.v[critId], ev.d[critId])} ${fmt(ev.v[critId])}` : "";
     const range = crit.deg[deg - 1];
+    fold.open.add(critId);
     ev.d[critId] = deg;
     if (value != null) ev.v[critId] = value;
     else if (range[0] === range[1]) ev.v[critId] = range[0];
@@ -1794,6 +1851,7 @@
     const tabBtn = ev.target.closest(".ce-tabs button");
     if (tabBtn) { tab = tabBtn.dataset.tab; crossId = null; crossView = "table"; render(); return; }
     const el = ev.target.closest("[data-act]");
+    document.querySelectorAll("details.ce-menu[open]").forEach(m => { if (!m.contains(ev.target) || el) m.open = false; });
     if (!el || el.disabled) return;
     const ep = active();
     const act = el.dataset.act;
@@ -1882,10 +1940,23 @@
         if (!e.notes?.[crit]) { e.notes = e.notes || {}; e.notes[crit] = quizSummary(crit, e.quiz[crit], e.quizPick?.[crit]); save(); }
         closeDialog();
         const y = window.scrollY; render(); window.scrollTo({top:y});
+        flashSaved(crit);
         toast(`${C.critById(crit).label} : ${stepText(C.critById(crit), prop)} pt placé${e.notes?.[crit]?.startsWith("Entretien") ? ", justification ajoutée" : ""}.`);
         break;
       }
-      case "pick": currentId = el.dataset.id; editChoices = null; render(); scrollToSheet(); break;
+      case "pick": currentId = el.dataset.id; editChoices = null; listOpen = false; render(); scrollToSheet(); break;
+      case "list-open": listOpen = true; render(); document.querySelector(".ce-list #ceSearch, .ce-list .ce-cand.current")?.scrollIntoView?.({block:"nearest"}); break;
+      case "list-close": listOpen = false; render(); break;
+      case "crit-expand": fold.open.add(el.dataset.crit); { const y = window.scrollY; render(); window.scrollTo({top:y}); } break;
+      case "crit-collapse": fold.open.delete(el.dataset.crit); { const y = window.scrollY; render(); window.scrollTo({top:y}); } break;
+      case "crit-expand-all": GRID.forEach(c => fold.open.add(c.id)); { const y = window.scrollY; render(); window.scrollTo({top:y}); } break;
+      case "note-toggle": {
+        const d = document.querySelector(`.ce-just[data-crit="${el.dataset.crit}"]`);
+        if (!d) break;
+        d.open = !d.open;
+        if (d.open) { fold.notes.add(el.dataset.crit); d.querySelector("textarea")?.focus(); } else fold.notes.delete(el.dataset.crit);
+        break;
+      }
       case "edit-choices": editChoices = editChoices === currentId ? null : currentId; render(); break;
       case "step": {
         const list=viewCandidates(ep);
@@ -2227,6 +2298,7 @@
     if (el.classList?.contains("ce-slider") && !el.disabled) { sliderPreview(el); sliderCommit(el); }
   };
   document.addEventListener("keydown", ev => {
+    if (ev.key === "Escape" && listOpen) { listOpen = false; render(); return; }
     const el = ev.target;
     if (!el.classList?.contains("ce-slider") || el.disabled) return;
     if (sliderKey(el, ev.key)) { ev.preventDefault(); sliderPreview(el, true); sliderCommit(el); }
@@ -2247,7 +2319,7 @@
   $("ceCandidates").addEventListener("click", () => { const ep = active(); if (ep) openCandidates(ep); else toast("Crée d'abord une épreuve."); });
   /* Plein écran (API du navigateur). Sur iPhone, l'API n'existe pas : l'ajout à l'écran d'accueil donne le même effet. */
   const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
-  const fsButton = () => { const b = $("ceFull"); if (b) { const on = !!fsElement(); b.textContent = on ? "⤡ Quitter" : "⛶ Plein écran"; b.setAttribute("aria-pressed", on); } };
+  const fsButton = () => { const b = $("ceFull"); if (b) { const on = !!fsElement(); b.innerHTML = on ? '⤡<span class="ce-lbl"> Quitter</span>' : '⛶<span class="ce-lbl"> Plein écran</span>'; b.setAttribute("aria-pressed", on); } };
   $("ceFull")?.addEventListener("click", () => {
     const root = document.documentElement;
     if (fsElement()) { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); return; }
@@ -2268,7 +2340,7 @@
   navigator.storage?.persist?.().catch(() => {});
 
   $('ceDialog').addEventListener('close',()=>{stopTestCamera?.();stopTestCamera=null;});
-  const manage=document.createElement('button');manage.type='button';manage.textContent='Archives et corbeille';manage.dataset.act='manage';document.querySelector('.ce-bar').append(manage);
+  const manage=document.createElement('button');manage.type='button';manage.innerHTML='🗂<span class="ce-lbl"> Archives et corbeille</span>';manage.title='Archives et corbeille';manage.setAttribute('aria-label','Archives et corbeille');manage.dataset.act='manage';document.querySelector('.ce-bar').insertBefore(manage,$('ceNotice'));
   navigator.serviceWorker?.addEventListener('controllerchange',checkOffline);
   if(navigator.serviceWorker) navigator.serviceWorker.ready.then(checkOffline);
   window.addEventListener('online',checkOffline);

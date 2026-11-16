@@ -6,26 +6,26 @@
   <meta name="theme-color" content="#172554">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="coeval.css?v=29">
+  <link rel="stylesheet" href="coeval.css?v=30">
   <title>Co-évaluation Bac EPS</title>
 </head>
 <body>
 
 <header class="ce-header">
   <div class="ce-brand"><h1>Co-évaluation Bac</h1><p>Musculation · CA5 · chacun note de son côté, puis on croise</p></div>
-  <button id="ceFull" type="button" class="ce-me" aria-pressed="false">⛶ Plein écran</button>
+  <button id="ceFull" type="button" class="ce-me" aria-pressed="false" title="Plein écran">⛶<span class="ce-lbl"> Plein écran</span></button>
   <button id="ceMe" type="button" class="ce-me">👤 Évaluateur</button>
 </header>
 
 <div class="ce-bar">
   <select id="ceEpreuve" aria-label="Épreuve"></select>
-  <button id="ceNewEpreuve" type="button">+ Nouvelle épreuve</button>
-  <button id="ceCandidates" type="button">👥 Candidats</button>
+  <button id="ceNewEpreuve" type="button" title="Nouvelle épreuve" aria-label="Nouvelle épreuve">+<span class="ce-lbl"> Nouvelle épreuve</span></button>
+  <button id="ceCandidates" type="button" title="Candidats" aria-label="Candidats">👥<span class="ce-lbl"> Candidats</span></button>
+  <div id="ceNotice"></div>
 </div>
 
 <nav class="ce-tabs" role="tablist"></nav>
 
-<div id="ceNotice"></div>
 <main id="ceMain"></main>
 <div id="cePrint" class="ce-print"></div>
 
@@ -37,7 +37,7 @@
 <script src="coeval-core.js?v=29"></script>
 <script src="coeval-demo.js?v=12"></script>
 <script src="coeval-workflow.js?v=15"></script>
-<script src="coeval.js?v=29"></script>
+<script src="coeval.js?v=30"></script>
 <script>
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).catch(() => {});

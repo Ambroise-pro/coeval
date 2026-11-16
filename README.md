@@ -65,6 +65,24 @@ Site statique : aucun build, à publier tel quel (Vercel, GitHub Pages…). La c
 
 ## Organisation et confort de saisie
 
+**Sur tablette** (écrans « Évaluer » et « Préparer ») :
+
+- en portrait et sur téléphone, la liste des élèves s’ouvre en tiroir avec le bouton
+  **👥** de la fiche (Échap ou un choix d’élève la referme) ; en paysage, elle reste
+  sur le côté ;
+- l’en-tête se réduit à une ligne ; l’état d’enregistrement et la copie de secours
+  deviennent deux pastilles ;
+- la carte de l’élève tient sur une ligne : ← 👥 nom ↶ ⋯ → (le menu ⋯ regroupe la
+  situation, le mode Passage et le QR du candidat) ;
+- la barre du bas affiche le total, **✔ Terminer AFL1** et **Suivant →** ;
+- les critères déjà notés sont repliés sur une ligne (un toucher les déplie, ▴ les
+  replie, « Tout déplier » les ouvre tous) ; celui qu’on vient de noter reste ouvert ;
+- sous le curseur, une valeur n’est plus répétée à la frontière de deux degrés et, sur
+  les échelles longues, seules les bornes des degrés sont écrites ;
+- l’icône **✎** du titre d’un critère ouvre sa justification ; une fiche terminée est
+  grisée ; chaque note enregistrée est confirmée par un ✓ (et une vibration si
+  l’appareil le permet).
+
 L’onglet **Vue d’ensemble** présente les préparations, les évaluations terminées,
 les fiches reçues et les élèves encore attendus. Il propose la prochaine action.
 La recherche par nom ou classe et le filtre de groupe sont accessibles dans la
@@ -190,6 +208,7 @@ NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-slider.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-afl1.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-fullscreen-filter-note.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-quiz.cjs
+NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-ergonomie.cjs
 ```
 
 Chromium est recherché dans `/usr/bin/chromium` ; définir `CHROMIUM_PATH` si besoin.

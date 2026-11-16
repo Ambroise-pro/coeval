@@ -8,19 +8,23 @@ const assert=require('node:assert/strict');
  const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage();
  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
  const act=a=>page.locator(`[data-act="${a}"]`).filter({visible:true}).first();
+ const menu=async()=>{await page.locator('.ce-menu>summary').filter({visible:true}).first().click();};
  await context.addInitScript(()=>{if(!localStorage.getItem('coeval-ui')) localStorage.setItem('coeval-ui',JSON.stringify({input:'cases',desc:true}));});
  await page.goto('http://127.0.0.1:8000/');await act('demo').click();
  await page.locator('[data-tab="home"]').click();await page.getByRole('heading',{name:/EXEMPLE/}).waitFor();
  assert.equal(await page.locator('.ce-dashboard-grid>div').count(),3);
  await page.locator('[data-tab="eval"]').click();
+ // Fiche terminée : critères notés repliés sur une ligne, dépliables.
+ assert.equal(await page.locator('.ce-slider').count(),0);assert.equal(await page.locator('.ce-crit-sum').count(),6);
+ await act('crit-expand-all').click();
  assert.equal(await page.locator('.ce-slider').count(),6);
  assert.equal(await page.locator('.ce-pt,[data-act="toggle-desc"],[data-act="toggle-input"]').count(),0);
  assert.equal(await page.locator('.ce-degbox-desc:visible').count(),24);
  await page.locator('#ceSearch').fill('ROBERT');assert.equal(await page.locator('.ce-cand').count(),1);
  await page.locator('#ceSearch').fill('introuvable');assert.equal(await page.locator('.ce-sheet').count(),0);
  await act('clear-filters').click();await page.locator('#ceSearch').fill('ROBERT');
- await act('passage').click();assert.ok(await page.locator('body').evaluate(e=>e.classList.contains('ce-passage')));
- await act('edit-candidate').click();await page.locator('#ceEditGroup').fill('Atelier A');await page.locator('#ceEditOrder').fill('1');await act('save-candidate').click();
+ await menu();await act('passage').click();assert.ok(await page.locator('body').evaluate(e=>e.classList.contains('ce-passage')));
+ await menu();await act('edit-candidate').click();await page.locator('#ceEditGroup').fill('Atelier A');await page.locator('#ceEditOrder').fill('1');await act('save-candidate').click();
  await page.locator('#ceGroup').selectOption({label:'Atelier A'});assert.equal(await page.locator('.ce-cand').count(),1);
  // A real slider edit followed by undo restores the value.
  const before=await page.evaluate(()=>{let e=CoEval.db.epreuves.find(e=>e.id===CoEval.db.activeId);let c=e.candidates.find(c=>c.name.includes('ROBERT'));return JSON.stringify(e.mine[c.id].v);});
@@ -29,6 +33,7 @@ const assert=require('node:assert/strict');
  assert.equal(await page.evaluate(()=>{let e=CoEval.db.epreuves.find(e=>e.id===CoEval.db.activeId);let c=e.candidates.find(c=>c.name.includes('ROBERT'));return JSON.stringify(e.mine[c.id].v);}),before);
  // Descriptions stay above the sliders even on mobile in Passage mode.
  await page.setViewportSize({width:390,height:844});
+ await act('crit-expand-all').click();
  assert.equal(await page.locator('.ce-degbox-desc:visible').count(),24);
  assert.ok(await page.locator('.ce-slide-crit').first().evaluate(el=>el.querySelector('.ce-degpts').getBoundingClientRect().bottom<=el.querySelector('.ce-slide').getBoundingClientRect().top));
  await page.setViewportSize({width:1280,height:900});
@@ -49,7 +54,7 @@ const assert=require('node:assert/strict');
  assert.equal(await page.evaluate(()=>CoEval.db.epreuves.find(e=>e.id===CoEval.db.activeId).backupAt||0),backupBefore);
  // Persistent warning if storage fails.
  await page.evaluate(()=>{window.originalStorageSet=Storage.prototype.setItem;Storage.prototype.setItem=function(){throw new DOMException('full','QuotaExceededError');};});
- await act('edit-candidate').click();await page.locator('#ceEditSituation').selectOption('absent');await act('save-candidate').click();await page.locator('.ce-storage-error').waitFor();
+ await menu();await act('edit-candidate').click();await page.locator('#ceEditSituation').selectOption('absent');await act('save-candidate').click();await page.locator('.ce-storage-error').waitFor();
  await page.evaluate(()=>{Storage.prototype.setItem=window.originalStorageSet;});
  // Archive and reopen.
  await page.locator('#ceCandidates').click();await act('archive').click();assert.equal(await page.locator('[data-act="unarchive"]').count(),1);await act('unarchive').click();
