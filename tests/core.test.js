@@ -437,19 +437,20 @@ test("justifications par critère : transmises par fichier, gardées lors d'un Q
 test("questions d'entretien : degré proposé selon les réponses, réponses nettoyées", () => {
   const d = a => C.quizDegree("regul", a);
   assert.equal(d({}), null);
-  assert.deepEqual(d({q2a:false, q2b:false}), {d:1, v:0});
-  assert.deepEqual(d({q2a:true, q2b:false}), {d:1, v:.25});
-  assert.equal(d({q2a:true, q2b:true}), null, "le niveau suivant doit être renseigné");
-  assert.deepEqual(d({q2a:true, q2b:true, q3a:false, q3b:false}), {d:2, v:.5});
-  assert.deepEqual(d({q2a:true, q2b:true, q3a:true, q3b:false}), {d:2, v:.75});
-  assert.deepEqual(d({q2a:true, q2b:true, q3a:true, q3b:true, q4a:false, q4b:false}), {d:3, v:1});
-  assert.deepEqual(d({q2a:true, q2b:true, q3a:true, q3b:true, q4a:true, q4b:false}), {d:3, v:1.25});
-  assert.deepEqual(d({q2a:true, q2b:true, q3a:true, q3b:true, q4a:true, q4b:true}), {d:4, v:2});
+  assert.deepEqual(d({q2a:false, q2b:false, q2c:false, q2d:false}), {d:1, v:0});
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:false, q2d:false}), {d:1, v:.25});
+  assert.equal(d({q2a:true, q2b:false}), null, "toutes les questions du niveau doivent être renseignées");
+  assert.equal(d({q2a:true, q2b:true, q2c:true, q2d:true}), null, "le niveau suivant doit être renseigné");
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:false, q3b:false}), {d:2, v:.5});
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:false}), {d:2, v:.75});
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:true, q4a:false, q4b:false}), {d:3, v:1});
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:true, q4a:true, q4b:false}), {d:3, v:1.25});
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:true, q4a:true, q4b:true}), {d:4, v:2});
   ["1", "2", "3"].forEach(t => C.quizItems("regul").forEach(it => assert.ok(it.ok[t] || it.ok[""], `${it.id} thème ${t}`)));
   assert.deepEqual(Object.keys(C.MOBILES), Object.keys(C.THEMES));
   Object.entries(C.MOBILES).forEach(([t, m]) => {
     assert.equal(m.nom, C.THEMES[t]);
-    ["but", "charge", "series", "reps", "recup", "rythme", "pourquoi", "ressentis", "indicateurs", "regul", "exemple"].forEach(k => assert.ok(m[k], `${m.nom}.${k}`));
+    ["but", "charge", "series", "reps", "recup", "rythme", "respiration", "pourquoi", "ressentis", "indicateurs", "regul", "exemple"].forEach(k => assert.ok(m[k], `${m.nom}.${k}`));
     assert.match(m.charge, /% de la RM$/);
   });
   assert.equal(C.quizItems("regul").find(it => it.id === "q2b").ok["3"][0], "Charge : 60 à 80\u00a0% de la RM");

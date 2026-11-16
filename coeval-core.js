@@ -96,6 +96,7 @@
     "1":{nom:"Puissance", but:"Produire le plus de force possible le plus vite possible : gagner en explosivité, en tonicité, en vitesse.",
       charge:"80 à 90 % de la RM", series:"3 à 5", reps:"4 à 8", recup:"2 à 3 min (récupération complète)",
       rythme:"Explosif à la montée, contrôlé à la descente",
+      respiration:"Inspire pendant la descente contrôlée, expire fort et vite pendant la poussée explosive.",
       pourquoi:"Une charge lourde sur peu de répétitions, poussée le plus vite possible, sollicite la force maximale ; la longue récupération garde la même intensité à chaque série.",
       ressentis:"Fraîcheur, vitesse conservée sur toutes les répétitions, pas de brûlure ni d'essoufflement marqués.",
       indicateurs:"Vitesse d'exécution, répétitions réalisées / prévues, fraîcheur musculaire.",
@@ -104,6 +105,7 @@
     "2":{nom:"Tonification", but:"Tenir un effort prolongé : endurance de force, affiner et raffermir la silhouette.",
       charge:"40 à 60 % de la RM", series:"4 à 6", reps:"15 à 25", recup:"30 s à 1 min",
       rythme:"Régulier et continu, sans temps d'arrêt",
+      respiration:"Une respiration par répétition, régulière, au rythme du mouvement, sans jamais bloquer.",
       pourquoi:"Une charge légère permet de longues séries ; la récupération courte entretient la fatigue pour travailler l'endurance du muscle.",
       ressentis:"Brûlure locale supportable, chaleur, essoufflement modéré en fin de série.",
       indicateurs:"Série menée au bout sans arrêt, essoufflement, brûlure locale.",
@@ -112,6 +114,7 @@
     "3":{nom:"Volume", but:"Augmenter le volume musculaire (prise de masse) par une fatigue locale importante.",
       charge:"60 à 80 % de la RM", series:"5 à 7", reps:"8 à 15", recup:"1 min à 1 min 30",
       rythme:"Lent et contrôlé (ex. 2 s à la montée, 2 s à la descente)",
+      respiration:"Inspire pendant la descente lente (2 s), expire pendant la montée (2 s).",
       pourquoi:"Une charge lourde menée près de l'échec sur 8 à 15 répétitions, avec une récupération incomplète, crée la fatigue qui fait grossir le muscle.",
       ressentis:"Congestion (muscle « gonflé »), brûlure, dernières répétitions très difficiles.",
       indicateurs:"Répétitions réalisées / prévues, proximité de l'échec, congestion.",
@@ -119,6 +122,8 @@
       exemple:"« 15 répétitions avec deux de réserve et peu de congestion : j'ajoute 2,5 kg. »"}
   };
   const byMobile = f => { const o = {}; Object.keys(MOBILES).forEach(t => { o[t] = f(MOBILES[t]); }); return o; };
+  const BREATH = ["Inspiration : pendant le retour de la charge (phase excentrique, on retient).",
+    "Expiration : pendant l'effort (phase concentrique, on pousse ou on tire).", "Jamais d'apnée : ne pas bloquer sa respiration."];
   const paramsText = m => [`Charge : ${m.charge}`, `Séries : ${m.series}`, `Répétitions : ${m.reps}`, `Récupération : ${m.recup}`, `Rythme : ${m.rythme}`];
 
   /* =========================
@@ -132,11 +137,15 @@
   ========================= */
   const QUIZ = {
     regul:[
-      {level:2, title:"Connaît son mobile et ses paramètres", items:[
+      {level:2, title:"Connaît son mobile, ses paramètres et sa respiration", items:[
         {id:"q2a", q:"Quel mobile as-tu choisi ?",
           ok:{"":"Nomme son mobile sans hésiter.", ...byMobile(m => `« ${m.nom} ».`)}},
         {id:"q2b", q:"Quels paramètres utilises-tu ?",
-          ok:{"":"Cite précisément sa charge, ses séries, ses répétitions et sa récupération.", ...byMobile(paramsText)}}]},
+          ok:{"":"Cite précisément sa charge, ses séries, ses répétitions et sa récupération.", ...byMobile(paramsText)}},
+        {id:"q2c", q:"Quand inspires-tu et quand expires-tu pendant le mouvement ?",
+          ok:{"":BREATH, ...byMobile(m => [...BREATH, `Pour ce mobile : ${m.respiration}`])}},
+        {id:"q2d", q:"Pourquoi expirer pendant l'effort ?",
+          ok:{"":"Pour éviter l'apnée, qui fait monter la pression dans le thorax et la tête (vertiges, malaise), et garder un bon gainage ; l'inspiration au retour prépare la répétition suivante."}}]},
       {level:3, title:"Comprend le but de ses paramètres", items:[
         {id:"q3a", q:"Dans quel but as-tu choisi ce mobile ? Quel effet recherches-tu ?",
           ok:{"":"Explique l'effet recherché sur son corps.", ...byMobile(m => m.but)}},

@@ -99,7 +99,7 @@ quitte la liste lorsqu’on passe à un autre élève.
 
 Sous **Régulation des paramètres**, le panneau **❓ Questions pour placer le degré**
 liste les questions que l’évaluateur pose à l’élève (comprend-il son mobile, ses
-paramètres et leur but ?), avec la réponse
+paramètres, sa respiration et leur but ?), avec la réponse
 attendue selon son mobile (Puissance, Tonification, Volume). Chaque réponse est
 notée ✔ Oui ou ✘ Non. Le degré atteint est le plus haut niveau (D2, D3, D4) dont
 toutes les questions sont satisfaites ; les réponses du niveau suivant situent la
@@ -107,7 +107,7 @@ note dans le degré. **Placer sur le curseur** reporte cette proposition, que
 l’évaluateur peut ensuite ajuster, et rédige la justification si elle est vide.
 Sous chaque question, la **réponse attendue** est donnée pour le mobile de l’élève :
 charge en % de la répétition maximale (RM), séries, répétitions, récupération,
-rythme, but recherché, ressentis et indicateurs, règles de régulation.
+rythme, respiration (inspiration au retour, expiration pendant l’effort), but recherché, ressentis et indicateurs, règles de régulation.
 
 | Mobile | Charge | Séries | Répétitions | Récupération | Rythme |
 |---|---|---|---|---|---|

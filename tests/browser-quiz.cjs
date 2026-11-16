@@ -44,7 +44,7 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
         await btn.evaluate(e => e.scrollIntoView({block: 'center'}));
         await btn.click();
       };
-      for (const [q, y] of [['q2a', 1], ['q2b', 1], ['q3a', 1], ['q3b', 1], ['q4a', 1], ['q4b', 0]]) await ans(q, y);
+      for (const [q, y] of [['q2a', 1], ['q2b', 1], ['q2c', 1], ['q2d', 1], ['q3a', 1], ['q3b', 1], ['q4a', 1], ['q4b', 0]]) await ans(q, y);
       const result = await p.locator('.ce-slide-crit[data-crit=regul] .ce-quiz-result').textContent();
       check(`[${label}] degré proposé D3 · 1,25`, result.includes('D3 · 1,25'), result.trim());
       const place = p.locator('.ce-slide-crit[data-crit=regul] [data-act=quiz-place]');
@@ -52,10 +52,11 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       await place.click();
       const ev = await p.evaluate(id => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); return e.mine[id]; }, cand.id);
       check(`[${label}] placé sur le curseur`, ev.d.regul === 3 && ev.v.regul === 1.25, JSON.stringify({d: ev.d.regul, v: ev.v.regul}));
-      check(`[${label}] justification ajoutée`, /^Entretien : 5\/6/.test(ev.notes?.regul || '') && ev.notes.regul.includes('prochaine séance'), ev.notes?.regul);
-      check(`[${label}] réponses conservées`, JSON.stringify(ev.quiz?.regul) === JSON.stringify({q2a: true, q2b: true, q3a: true, q3b: true, q4a: true, q4b: false}));
+      check(`[${label}] justification ajoutée`, /^Entretien : 7\/8/.test(ev.notes?.regul || '') && ev.notes.regul.includes('prochaine séance'), ev.notes?.regul);
+      check(`[${label}] réponses conservées`, JSON.stringify(ev.quiz?.regul) === JSON.stringify({q2a: true, q2b: true, q2c: true, q2d: true, q3a: true, q3b: true, q4a: true, q4b: false}));
       check(`[${label}] curseur affiche D3 · 1,25`, (await p.textContent('.ce-slide-crit[data-crit=regul] .ce-slide-val')).includes('D3 · 1,25'));
       check(`[${label}] indication « placé »`, await p.locator('.ce-slide-crit[data-crit=regul] .ce-quiz-ok').count() === 1);
+      check(`[${label}] question respiration : inspiration / expiration`, (await quiz.locator('.ce-quiz-item[data-q=q2c] .ce-quiz-exp').textContent()).includes('Expiration : pendant l\'effort'));
       // Une réponse corrigée propose un autre degré ; une note déjà justifiée n'est pas écrasée.
       await ans('q4b', 1);
       check(`[${label}] nouvelle proposition après correction`, (await p.textContent('.ce-slide-crit[data-crit=regul] .ce-quiz-result')).includes('D4 · 2'));
@@ -66,7 +67,7 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       await p.locator('[data-tab=eval]').click();
       await p.locator('#ceSearch').fill(cand.name.split(' ')[0]);
       await p.locator('.ce-cand').first().click();
-      check(`[${label}] réponses affichées après rechargement`, await p.locator('.ce-slide-crit[data-crit=regul] .ce-quiz-ans button.on').count() === 6);
+      check(`[${label}] réponses affichées après rechargement`, await p.locator('.ce-slide-crit[data-crit=regul] .ce-quiz-ans button.on').count() === 8);
       const ov = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
       check(`[${label}] aucun débordement horizontal`, ov <= 0, `${ov} px`);
     } catch (e) { check(`[${label}] exception`, false, e.message); }
