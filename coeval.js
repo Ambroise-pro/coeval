@@ -1655,21 +1655,21 @@
       :prof && pending?['cross','Harmoniser les écarts']
       :prof?['cross','Consulter l’harmonisation']
       :['send','Envoyer mes évaluations'];
-    main.innerHTML=`<section class="ce-card ce-dashboard">
+    main.innerHTML=`<section class="ce-dashboard">\n      <div class="ce-dashboard-hero">\n      <div class="ce-dashboard-orb" aria-hidden="true"></div>
       <div class="ce-dashboard-heading"><div><span class="ce-dashboard-eyebrow">Tableau de bord · Suivi de l’épreuve</span><h2>${esc(ep.title)}</h2><p>${s.total} élèves · ${s.special} situation(s) particulière(s)</p></div>
-      <span class="ce-dashboard-state">${s.done===s.expected && s.expected?'✓ Évaluations terminées':'Épreuve en cours'}</span></div>
+      <span class="ce-dashboard-state"><span class="ce-dashboard-status-dot"></span>${s.done===s.expected && s.expected?'Évaluations terminées':'Épreuve en cours'}</span></div>\n      <div class="ce-dashboard-hero-bottom"><span>${s.expected ? Math.round(s.done/s.expected*100) : 0}% des évaluations terminées</span><div class="ce-dashboard-hero-track"><i style="width:${s.expected?s.done/s.expected*100:0}%"></i></div></div></div>\n      <div class="ce-dashboard-section-title"><div><span class="ce-dashboard-eyebrow">VUE D’ENSEMBLE</span><h3>Les indicateurs essentiels</h3></div><span>Mis à jour automatiquement</span></div>
       <div class="ce-dashboard-grid">
-        <div class="ce-dashboard-metric"><span class="ce-dashboard-icon">◉</span><b>${s.prepared}<small> / ${s.expected}</small></b><span>Élèves prêts</span><div class="ce-dashboard-meter"><i style="width:${s.expected?s.prepared/s.expected*100:0}%"></i></div></div>
-        <div class="ce-dashboard-metric"><span class="ce-dashboard-icon">✓</span><b>${s.done}<small> / ${s.expected}</small></b><span>Évaluations terminées</span><div class="ce-dashboard-meter"><i style="width:${s.expected?s.done/s.expected*100:0}%"></i></div></div>
-        <div class="ce-dashboard-metric"><span class="ce-dashboard-icon">⇄</span><b>${pending}</b><span>Décisions à harmoniser</span><small>${!prof?'Réservé au professeur':!Object.keys(ep.others).length?'En attente des évaluations reçues':pending?'Cas nécessitant une décision':'Aucune décision en attente'}</small></div>
+        <div class="ce-dashboard-metric ce-dashboard-ready"><span class="ce-dashboard-icon" aria-hidden="true">◉</span><b>${s.prepared}<small> / ${s.expected}</small></b><span>Élèves prêts</span><div class="ce-dashboard-meter"><i style="width:${s.expected?s.prepared/s.expected*100:0}%"></i></div></div>
+        <div class="ce-dashboard-metric ce-dashboard-done"><span class="ce-dashboard-icon" aria-hidden="true">✓</span><b>${s.done}<small> / ${s.expected}</small></b><span>Évaluations terminées</span><div class="ce-dashboard-meter"><i style="width:${s.expected?s.done/s.expected*100:0}%"></i></div></div>
+        <div class="ce-dashboard-metric ce-dashboard-pending"><span class="ce-dashboard-icon" aria-hidden="true">⇄</span><b>${pending}</b><span>Décisions à harmoniser</span><small>${!prof?'Réservé au professeur':!Object.keys(ep.others).length?'En attente des évaluations reçues':pending?'Cas nécessitant une décision':'Aucune décision en attente'}</small></div>
       </div>
-      <div class="ce-dashboard-next"><div><strong>Prochaine étape</strong><p>${next[1]}</p></div><button type="button" class="ce-primary" data-act="dashboard-next" data-target="${next[0]}">${next[1]} →</button></div>
-      <div class="ce-actions ce-dashboard-secondary"><button type="button" data-act="readiness">Avant l’épreuve</button><button type="button" data-act="manage">Archives et corbeille</button></div>
+      <div class="ce-dashboard-next"><div class="ce-dashboard-next-symbol" aria-hidden="true">↗</div><div class="ce-dashboard-next-copy"><strong>PROCHAINE ÉTAPE</strong><p>${next[1]}</p></div><button type="button" class="ce-primary" data-act="dashboard-next" data-target="${next[0]}">${next[1]} →</button></div>
+      <div class="ce-dashboard-details"><div class="ce-actions ce-dashboard-secondary"><button type="button" data-act="readiness">Avant l’épreuve</button><button type="button" data-act="manage">Archives et corbeille</button></div>
       <p class="ce-hint">Les élèves absents, dispensés ou reportés sont suivis séparément ; les notes déjà saisies sont conservées.</p>
       <details class="ce-more"><summary>Évaluations reçues et suivi détaillé</summary>
       <p>${s.validated}/${s.expected} notes validées</p>
       ${s.received.length?s.received.map(r=>`<div class="ce-reception"><b>${esc(r.name)}</b> : ${s.expected-r.missing.length}/${s.expected} fiches reçues, ${r.complete} terminées.${r.missing.length?`<details><summary>${r.missing.length} élèves encore attendus</summary>${r.missing.map(c=>`<button type="button" data-act="open-student" data-id="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</details>`:'<p>Toutes les fiches attendues ont été reçues.</p>'}</div>`).join(''):'<p>Aucune évaluation reçue.</p>'}</details>
-      ${backupHTML(ep)}</section>`;
+      ${backupHTML(ep)}</div></section>`;
   }
   async function checkOffline() {
     try {
