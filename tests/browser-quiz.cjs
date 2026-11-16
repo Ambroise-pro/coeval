@@ -31,23 +31,28 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       await p.selectOption('#ceAfl', '');
       await p.locator('#ceSearch').fill(cand.name.split(' ')[0]);
       await p.locator('.ce-cand').first().click();
-      const quiz = p.locator('.ce-slide-crit[data-crit=regul] .ce-quiz');
-      check(`[${label}] questions affichées sous la régulation, ouvertes`, await quiz.count() === 1 && await quiz.evaluate(d => d.open));
+      const openBtn = p.locator('.ce-slide-crit[data-crit=regul] [data-act=quiz-open]');
+      check(`[${label}] questionnaire masqué, bouton sous la régulation`, await openBtn.count() === 1 && await p.locator('.ce-quiz-item').count() === 0);
+      await openBtn.evaluate(e => e.scrollIntoView({block: 'center'}));
+      await openBtn.click();
+      const quiz = p.locator('#ceDialog .ce-quiz');
+      check(`[${label}] le bouton ouvre le questionnaire en popup`, await p.evaluate(() => document.getElementById('ceDialog').open) && await quiz.count() === 1);
       const themeName = {1: 'Puissance', 2: 'Tonification', 3: 'Volume'}[cand.theme];
-      check(`[${label}] questions adaptées au mobile (${themeName})`, (await quiz.locator('summary').textContent()).includes(themeName));
+      check(`[${label}] questions adaptées au mobile (${themeName})`, (await quiz.locator('.ce-quiz-sub').textContent()).includes(themeName));
       const hint = await quiz.locator('.ce-quiz-item[data-q=q2b] .ce-quiz-exp').textContent();
       const expected = {1: ['80 à 90', '4 à 8'], 2: ['40 à 60', '15 à 25'], 3: ['60 à 80', '8 à 15']}[cand.theme];
       check(`[${label}] paramètres attendus propres au mobile (% RM, répétitions)`, hint.includes(expected[0] + '\u00a0% de la RM') && hint.includes('Répétitions : ' + expected[1]) && await quiz.locator('.ce-quiz-item[data-q=q2b] li').count() === 5, hint);
       check(`[${label}] pas de degré tant qu'on n'a pas répondu`, (await quiz.locator('[data-act=quiz-place]').count()) === 0);
       const ans = async (q, yes) => {
-        const btn = p.locator(`.ce-slide-crit[data-crit=regul] .ce-quiz-item[data-q=${q}] [data-ans="${yes ? 1 : 0}"]`);
+        const btn = p.locator(`#ceDialog .ce-quiz-item[data-q=${q}] [data-ans="${yes ? 1 : 0}"]`);
         await btn.evaluate(e => e.scrollIntoView({block: 'center'}));
         await btn.click();
       };
       for (const [q, y] of [['q2a', 1], ['q2b', 1], ['q2c', 1], ['q2d', 1], ['q3a', 1], ['q3b', 1], ['q4a', 1], ['q4b', 0]]) await ans(q, y);
-      const result = await p.locator('.ce-slide-crit[data-crit=regul] .ce-quiz-result').textContent();
+      check(`[${label}] le popup reste ouvert pendant les réponses`, await p.evaluate(() => document.getElementById('ceDialog').open));
+      const result = await p.locator('#ceDialog .ce-quiz-result').textContent();
       check(`[${label}] degré proposé D3 · 1,25`, result.includes('D3 · 1,25'), result.trim());
-      const place = p.locator('.ce-slide-crit[data-crit=regul] [data-act=quiz-place]');
+      const place = p.locator('#ceDialog [data-act=quiz-place]');
       await place.evaluate(e => e.scrollIntoView({block: 'center'}));
       await place.click();
       const ev = await p.evaluate(id => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); return e.mine[id]; }, cand.id);
@@ -55,19 +60,25 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       check(`[${label}] justification ajoutée`, /^Entretien : 7\/8/.test(ev.notes?.regul || '') && ev.notes.regul.includes('prochaine séance'), ev.notes?.regul);
       check(`[${label}] réponses conservées`, JSON.stringify(ev.quiz?.regul) === JSON.stringify({q2a: true, q2b: true, q2c: true, q2d: true, q3a: true, q3b: true, q4a: true, q4b: false}));
       check(`[${label}] curseur affiche D3 · 1,25`, (await p.textContent('.ce-slide-crit[data-crit=regul] .ce-slide-val')).includes('D3 · 1,25'));
-      check(`[${label}] indication « placé »`, await p.locator('.ce-slide-crit[data-crit=regul] .ce-quiz-ok').count() === 1);
+      check(`[${label}] popup fermé après placement, avancement sous le bouton`, !(await p.evaluate(() => document.getElementById('ceDialog').open))
+        && (await p.textContent('.ce-slide-crit[data-crit=regul] .ce-quiz-open')).includes('8 réponses · proposé D3 · 1,25'));
+      await openBtn.click();
+      check(`[${label}] indication « placé » à la réouverture`, await p.locator('#ceDialog .ce-quiz-ok').count() === 1);
       check(`[${label}] question respiration : inspiration / expiration`, (await quiz.locator('.ce-quiz-item[data-q=q2c] .ce-quiz-exp').textContent()).includes('Expiration : pendant l\'effort'));
       // Une réponse corrigée propose un autre degré ; une note déjà justifiée n'est pas écrasée.
       await ans('q4b', 1);
-      check(`[${label}] nouvelle proposition après correction`, (await p.textContent('.ce-slide-crit[data-crit=regul] .ce-quiz-result')).includes('D4 · 2'));
-      await p.locator('.ce-slide-crit[data-crit=regul] [data-act=quiz-place]').click();
+      check(`[${label}] nouvelle proposition après correction`, (await p.textContent('#ceDialog .ce-quiz-result')).includes('D4 · 2'));
+      await p.locator('#ceDialog [data-act=quiz-place]').click();
       const ev2 = await p.evaluate(id => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); return e.mine[id]; }, cand.id);
       check(`[${label}] placé en D4 sans écraser la justification`, ev2.d.regul === 4 && ev2.v.regul === 2 && ev2.notes.regul === ev.notes.regul);
       await p.reload();
       await p.locator('[data-tab=eval]').click();
       await p.locator('#ceSearch').fill(cand.name.split(' ')[0]);
       await p.locator('.ce-cand').first().click();
-      check(`[${label}] réponses affichées après rechargement`, await p.locator('.ce-slide-crit[data-crit=regul] .ce-quiz-ans button.on').count() === 8);
+      await p.locator('.ce-slide-crit[data-crit=regul] [data-act=quiz-open]').click();
+      check(`[${label}] réponses affichées après rechargement`, await p.locator('#ceDialog .ce-quiz-ans button.on').count() === 8);
+      await p.locator('#ceDialog [data-act=quiz-close]').click();
+      check(`[${label}] bouton ✕ ferme le popup`, !(await p.evaluate(() => document.getElementById('ceDialog').open)));
       const ov = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
       check(`[${label}] aucun débordement horizontal`, ov <= 0, `${ov} px`);
     } catch (e) { check(`[${label}] exception`, false, e.message); }

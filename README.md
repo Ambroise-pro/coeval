@@ -97,8 +97,8 @@ AFL3) qui se combine avec la recherche, le groupe et le filtre d’état.
 L’élève ouvert reste affiché quand sa saisie le fait sortir du filtre ; il
 quitte la liste lorsqu’on passe à un autre élève.
 
-Sous **Régulation des paramètres**, le panneau **❓ Questions pour placer le degré**
-liste les questions que l’évaluateur pose à l’élève (comprend-il son mobile, ses
+Sous **Régulation des paramètres**, le bouton **❓ Questions d’entretien** ouvre une
+fenêtre qui liste les questions que l’évaluateur pose à l’élève (comprend-il son mobile, ses
 paramètres, sa respiration et leur but ?), avec la réponse
 attendue selon son mobile (Puissance, Tonification, Volume). Chaque réponse est
 notée ✔ Oui ou ✘ Non. Le degré atteint est le plus haut niveau (D2, D3, D4) dont

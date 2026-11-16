@@ -427,19 +427,31 @@
 
   /* Questions d'entretien (régulation des paramètres) adaptées au mobile de l'élève :
      les réponses proposent un degré et des points, que l'évaluateur place sur le curseur. */
+  /* Sous le critère : un bouton qui ouvre le questionnaire, avec l'avancement des réponses. */
   function quizHTML(crit, ev, locked) {
+    if (!C.QUIZ[crit.id]) return "";
+    const a = ev.quiz?.[crit.id] || {};
+    const total = C.quizItems(crit.id).length;
+    const answered = C.quizItems(crit.id).filter(it => typeof a[it.id] === "boolean").length;
+    const prop = C.quizDegree(crit.id, a);
+    return `<div class="ce-quiz-open"><button type="button" data-act="quiz-open" data-crit="${crit.id}">❓ Questions d'entretien</button>
+      ${answered ? `<span class="ce-hint">${answered}/${total} réponses${prop ? ` · proposé ${esc(stepText(crit, prop))} pt` : ""}</span>` : ""}</div>`;
+  }
+
+  /* Questionnaire (popup) adapté au mobile : les réponses proposent un degré et des points,
+     que l'évaluateur place sur le curseur. */
+  function quizDialogHTML(crit, ev, cand, locked) {
     const levels = C.QUIZ[crit.id];
-    if (!levels) return "";
     const a = ev.quiz?.[crit.id] || {};
     const theme = ev.theme || "";
     const prop = C.quizDegree(crit.id, a);
-    const items = C.quizItems(crit.id);
-    const answered = items.filter(it => typeof a[it.id] === "boolean").length;
-    const open = !locked && ev.v[crit.id] == null;
+    const answered = C.quizItems(crit.id).filter(it => typeof a[it.id] === "boolean").length;
     const same = prop && ev.d[crit.id] === prop.d && ev.v[crit.id] === prop.v;
     const btn = (it, val, label) => `<button type="button" data-act="quiz" data-crit="${crit.id}" data-q="${it.id}" data-ans="${val ? 1 : 0}"
       class="${a[it.id] === val ? (val ? "on yes" : "on no") : ""}" aria-pressed="${a[it.id] === val}"${locked ? " disabled" : ""}>${label}</button>`;
-    return `<details class="ce-quiz"${open || answered ? " open" : ""}><summary>❓ Questions pour placer le degré · ${esc(THEMES[theme] || "mobile non renseigné")}</summary>
+    return `<div class="ce-quiz" data-crit="${crit.id}">
+      <div class="ce-quiz-top"><h2>${esc(crit.label)} · ${esc(cand.name)}</h2><button type="button" value="close" data-act="quiz-close" aria-label="Fermer">✕</button></div>
+      <p class="ce-quiz-sub">Mobile : <b>${esc(THEMES[theme] || "non renseigné")}</b>${locked ? " · 🔒 lecture seule" : ""}</p>
       ${theme ? "" : `<p class="ce-hint">Renseigne le thème de l'élève pour des repères propres à son mobile.</p>`}
       ${levels.map(l => `<div class="ce-quiz-level"><h4><span class="ce-quiz-d d${l.level}">D${l.level}</span> ${esc(l.title)}</h4>
         ${l.items.map(it => `<div class="ce-quiz-item" data-q="${it.id}">
@@ -448,7 +460,17 @@
       <div class="ce-quiz-result">${prop
         ? `<span>Degré proposé : <b>${esc(stepText(crit, prop))} pt</b></span>${same ? `<span class="ce-quiz-ok">✔ Placé sur le curseur</span>` : `<button type="button" class="ce-primary" data-act="quiz-place" data-crit="${crit.id}"${locked ? " disabled" : ""}>Placer sur le curseur</button>`}`
         : `<span class="ce-hint">${answered ? "Réponds aux questions restantes du niveau en cours pour obtenir un degré." : "Pose les questions et note chaque réponse."}</span>`}</div>
-    </details>`;
+    </div>`;
+  }
+
+  function openQuiz(ep, critId) {
+    const cand = candById(ep, currentId), ev = evalOf(ep, currentId);
+    const locked = !!ev.done || !W.eligible(cand);
+    const dlg = $("ceDialog"), y = dlg.open ? dlg.querySelector(".ce-dialog")?.scrollTop || 0 : 0;
+    openDialog(quizDialogHTML(C.critById(critId), ev, cand, locked));
+    dlg.classList.add("ce-quiz-dlg");
+    dlg.addEventListener("close", () => dlg.classList.remove("ce-quiz-dlg"), {once:true});
+    const box = dlg.querySelector(".ce-dialog"); if (box) box.scrollTop = y;
   }
 
   /* Réponse attendue : une phrase ou une liste de lignes (paramètres, ressentis…). */
@@ -1803,14 +1825,18 @@
         e.updatedAt = Date.now();
         save();
         const y = window.scrollY; render(); window.scrollTo({top:y});
+        openQuiz(ep, crit);
         break;
       }
+      case "quiz-open": openQuiz(ep, el.dataset.crit); break;
+      case "quiz-close": closeDialog(); break;
       case "quiz-place": {
         const e = evalOf(ep, currentId), crit = el.dataset.crit;
         const prop = C.quizDegree(crit, e.quiz?.[crit]);
         if (!prop || e.done) break;
         setValue(ep, crit, prop.d, prop.v);
         if (!e.notes?.[crit]) { e.notes = e.notes || {}; e.notes[crit] = quizSummary(crit, e.quiz[crit]); save(); }
+        closeDialog();
         const y = window.scrollY; render(); window.scrollTo({top:y});
         toast(`${C.critById(crit).label} : ${stepText(C.critById(crit), prop)} pt placé${e.notes?.[crit]?.startsWith("Entretien") ? ", justification ajoutée" : ""}.`);
         break;
