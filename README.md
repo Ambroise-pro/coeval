@@ -98,7 +98,8 @@ L’élève ouvert reste affiché quand sa saisie le fait sortir du filtre ; il
 quitte la liste lorsqu’on passe à un autre élève.
 
 Sous **Régulation des paramètres**, le panneau **❓ Questions pour placer le degré**
-liste les questions à poser à l’élève (et un point à observer), avec la réponse
+liste les questions que l’évaluateur pose à l’élève (comprend-il son mobile, ses
+paramètres et leur but ?), avec la réponse
 attendue selon son mobile (Puissance, Tonification, Volume). Chaque réponse est
 notée ✔ Oui ou ✘ Non. Le degré atteint est le plus haut niveau (D2, D3, D4) dont
 toutes les questions sont satisfaites ; les réponses du niveau suivant situent la

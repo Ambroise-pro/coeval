@@ -88,38 +88,42 @@
 
   /* =========================
      QUESTIONS D'ENTRETIEN — Régulation des paramètres
-     Questions posées à l'élève (ou points observés), selon son mobile (thème).
-     Chaque niveau correspond au degré qu'il permet d'atteindre : un degré est
-     atteint quand toutes les questions de son niveau et des niveaux inférieurs
-     sont satisfaites. « ok » = ce qu'on attend d'une réponse satisfaisante.
+     Questions posées par l'évaluateur à l'élève : comprend-il quel mobile il a
+     choisi, quels paramètres il utilise et dans quel but ? Chaque niveau
+     correspond au degré qu'il permet d'atteindre : un degré est atteint quand
+     toutes les questions de son niveau et des niveaux inférieurs sont satisfaites.
+     « ok » = réponse attendue, selon le thème ("" = repère commun).
      Le texte peut être adapté ici sans toucher à la grille.
   ========================= */
   const QUIZ = {
     regul:[
-      {level:2, title:"Une régulation existe, sans danger", items:[
-        {id:"q2a", kind:"ask", q:"Qu'as-tu changé depuis ta première série ?",
-          ok:{"":"Cite au moins un paramètre modifié : charge, répétitions, récupération ou vitesse d'exécution."}},
-        {id:"q2b", kind:"see", q:"La charge choisie est sans danger et sollicite réellement l'élève.",
-          ok:{"":"Ni charge qui met en jeu l'intégrité physique, ni charge insignifiante."}}]},
-      {level:3, title:"Régulation appuyée sur un indicateur, cohérente avec le mobile", items:[
-        {id:"q3a", kind:"ask", q:"Sur quoi t'es-tu appuyé pour faire ce changement ?",
-          ok:{"":"Un indicateur précis : une donnée chiffrée ou un ressenti.",
-            "1":"Vitesse d'exécution, explosivité, répétitions réalisées / prévues, ou ressenti de fraîcheur musculaire.",
-            "2":"Série menée au bout sans arrêt, essoufflement, ou brûlure locale supportable.",
-            "3":"Répétitions réalisées / prévues, proximité de l'échec, ou ressenti de congestion / brûlure."}},
-        {id:"q3b", kind:"ask", q:"En quoi ta charge correspond-elle à ton mobile ?",
-          ok:{"":"Relie la charge et la récupération à l'effet recherché.",
+      {level:2, title:"Connaît son mobile et ses paramètres", items:[
+        {id:"q2a", q:"Quel mobile as-tu choisi ?",
+          ok:{"":"Nomme son mobile sans hésiter.",
+            "1":"« Puissance » : être plus explosif, produire de la force vite.",
+            "2":"« Tonification » : endurance de force, affiner et raffermir.",
+            "3":"« Volume » : augmenter le volume musculaire."}},
+        {id:"q2b", q:"Quels paramètres utilises-tu ?",
+          ok:{"":"Cite précisément sa charge, ses séries, ses répétitions et sa récupération."}}]},
+      {level:3, title:"Comprend le but de ses paramètres", items:[
+        {id:"q3a", q:"Dans quel but as-tu choisi ce mobile ? Quel effet recherches-tu ?",
+          ok:{"":"Explique l'effet recherché sur son corps.",
+            "1":"Produire le plus de force le plus vite possible : gagner en explosivité, en tonicité.",
+            "2":"Tenir un effort prolongé : endurance musculaire, affiner et raffermir la silhouette.",
+            "3":"Prendre du volume : fatigue locale importante pour développer le muscle."}},
+        {id:"q3b", q:"Pourquoi tes paramètres permettent-ils d'atteindre ce but ?",
+          ok:{"":"Relie charge, répétitions et récupération à l'effet recherché.",
             "1":"Charge permettant une exécution rapide et explosive jusqu'à la dernière répétition ; récupération longue (environ 2 à 3 min).",
             "2":"Charge légère permettant 15 répétitions ou plus en continu ; récupération courte (moins d'1 min).",
             "3":"Charge qui amène près de l'échec sur 8 à 12 répétitions ; récupération moyenne (environ 1 à 1 min 30)."}}]},
-      {level:4, title:"Croisement chiffres / ressentis et régulation différée", items:[
-        {id:"q4a", kind:"ask", q:"Quel chiffre ET quel ressenti t'ont fait choisir ta charge ?",
+      {level:4, title:"Régule à partir de ce qu'il mesure et ressent", items:[
+        {id:"q4a", q:"Qu'as-tu modifié pendant la séance, à partir de quels chiffres et de quels ressentis ?",
           ok:{"":"Associe une donnée chiffrée (répétitions, charge, temps) et un ressenti (musculaire, cardio-respiratoire ou psychologique).",
             "1":"Ex. « 6 répétitions sur 6, toujours rapides, et je me sens frais : j'ajoute 5 kg ».",
             "2":"Ex. « 20 répétitions sans arrêt mais brûlure forte dès la 12e : je garde la charge et j'allonge un peu la récupération ».",
             "3":"Ex. « 12 répétitions faites avec deux de réserve et peu de congestion : j'ajoute 2,5 kg »."}},
-        {id:"q4b", kind:"ask", q:"Que changeras-tu à la prochaine séance, et pourquoi ?",
-          ok:{"":"Régulation différée, cohérente avec le mobile et justifiée par ce qui a été relevé.",
+        {id:"q4b", q:"Que changeras-tu à la prochaine séance, et pourquoi ?",
+          ok:{"":"Régulation pour la séance suivante, cohérente avec le mobile et justifiée par ce qui a été relevé.",
             "1":"Ex. augmenter la charge si la vitesse reste élevée sur toutes les répétitions ; allonger la récupération si elle chute.",
             "2":"Ex. ajouter des répétitions ou réduire la récupération si la série est facile ; alléger si arrêt avant la fin.",
             "3":"Ex. augmenter la charge si 12 répétitions sont faciles ; la baisser si moins de 8 sont réalisées."}}]}

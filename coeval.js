@@ -443,7 +443,7 @@
       ${theme ? "" : `<p class="ce-hint">Renseigne le thème de l'élève pour des repères propres à son mobile.</p>`}
       ${levels.map(l => `<div class="ce-quiz-level"><h4><span class="ce-quiz-d d${l.level}">D${l.level}</span> ${esc(l.title)}</h4>
         ${l.items.map(it => `<div class="ce-quiz-item" data-q="${it.id}">
-          <div class="ce-quiz-q"><b>${it.kind === "see" ? "👁 " : "💬 "}${esc(it.q)}</b><small>Attendu : ${esc(it.ok[theme] || it.ok[""])}</small></div>
+          <div class="ce-quiz-q"><b>💬 ${esc(it.q)}</b><small>Attendu : ${esc(it.ok[theme] || it.ok[""])}</small></div>
           <div class="ce-quiz-ans">${btn(it, true, "✔ Oui")}${btn(it, false, "✘ Non")}</div></div>`).join("")}</div>`).join("")}
       <div class="ce-quiz-result">${prop
         ? `<span>Degré proposé : <b>${esc(stepText(crit, prop))} pt</b></span>${same ? `<span class="ce-quiz-ok">✔ Placé sur le curseur</span>` : `<button type="button" class="ce-primary" data-act="quiz-place" data-crit="${crit.id}"${locked ? " disabled" : ""}>Placer sur le curseur</button>`}`
