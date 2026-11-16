@@ -468,6 +468,7 @@ test("questions d'entretien : deux questions par degré, rotation, degré propos
   const ep2 = {candidates:[], mine:{a:{v:{}, d:{}, quizPick:{regul:{mobile:"q2a2", params:"zzz"}, autre:{x:"y"}}}}};
   C.migrateEpreuve(ep2, "Moi");
   assert.deepEqual(ep2.mine.a.quizPick, {regul:{mobile:"q2a2"}});
+  assert.equal(C.critById("param").key.length, 4, "repère simplifié par degré");
   assert.deepEqual(Object.keys(C.MOBILES), Object.keys(C.THEMES));
   Object.entries(C.MOBILES).forEach(([t, m]) => {
     assert.equal(m.nom, C.THEMES[t]);

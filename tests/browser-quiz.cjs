@@ -31,6 +31,8 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       await p.selectOption('#ceAfl', '');
       await p.locator('#ceSearch').fill(cand.name.split(' ')[0]);
       await p.locator('.ce-cand').first().click();
+      const keys = await p.locator('.ce-slide-crit[data-crit=param] .ce-degbox-key').allTextContents();
+      check(`[${label}] Choix des paramètres : repère simplifié en gras dans chaque degré`, keys.length === 4 && keys[2].includes('75 à 90'), keys.join(' | '));
       const openBtn = p.locator('.ce-slide-crit[data-crit=regul] [data-act=quiz-open]');
       check(`[${label}] questionnaire masqué, bouton sous la régulation`, await openBtn.count() === 1 && await p.locator('.ce-quiz-item').count() === 0);
       await openBtn.evaluate(e => e.scrollIntoView({block: 'center'}));

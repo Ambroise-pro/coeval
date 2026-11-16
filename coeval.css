@@ -512,6 +512,7 @@ button.ce-adopt.mean{--c:var(--ce-d3)}
 /* Curseur sous les cases de degré (cases avec le texte des critères au-dessus). */
 .ce-slide-crit .ce-degpts{margin:4px 0 0}
 .ce-slide-crit .ce-degbox-desc{font-size:12px}
+.ce-degbox-key{display:block;font-size:13px;line-height:1.25;color:var(--ce-ink,#0f172a);margin:2px 0 3px}
 .ce-slide-crit .ce-slide{margin-top:4px}
 /* Avec les cases et leur texte au-dessus, une seule colonne de critères (lisible). */
 @media (min-width:1000px){

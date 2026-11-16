@@ -381,7 +381,7 @@
       const d = i + 1;
       const name = crit.names ? crit.names[i] : "Degré " + d;
       return `<div class="ce-degbox d${d}${deg === d ? " on" : ""}" data-d="${d}">
-        <b>${esc(name)}</b><span class="ce-degbox-desc">${esc(desc[i])}</span></div>`;
+        <b>${esc(name)}</b>${crit.key ? `<strong class="ce-degbox-key">${esc(crit.key[i])}</strong>` : ""}<span class="ce-degbox-desc">${esc(desc[i])}</span></div>`;
     }).join("")}</div>`;
   }
 

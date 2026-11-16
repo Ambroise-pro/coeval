@@ -40,7 +40,9 @@
         "Paramètres incohérents avec le thème, matériel inadapté ; charges mal installées et/ou non sécurisées",
         "Charge incohérente avec les ressources ou le thème ; implication irrégulière : 50 à 75 % des répétitions prévues validées",
         "Charge adaptée aux ressources et à l'effort ; paramètres cohérents avec le thème : 75 à 90 % validées",
-        "Charge adaptée, optimisée et régulée en cours d'action ; choix individualisé : > 90 % validées")},
+        "Charge adaptée, optimisée et régulée en cours d'action ; choix individualisé : > 90 % validées"),
+      /* Repère simplifié affiché en gras au-dessus du descripteur (la grille n'est pas modifiée). */
+      key:D4("Incohérent ou non sécurisé", "Charge incohérente · 50 à 75 % des rép.", "Charge adaptée · 75 à 90 % des rép.", "Charge optimisée et régulée · plus de 90 % des rép.")},
     {id:"ress", afl:"AFL1", group:"Analyser", label:"Identification des ressentis", max:2,
       deg:D4([0, .5], [.75, 1], [1, 1.5], [1.75, 2]),
       desc:D4(
