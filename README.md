@@ -97,6 +97,15 @@ AFL3) qui se combine avec la recherche, le groupe et le filtre d’état.
 L’élève ouvert reste affiché quand sa saisie le fait sortir du filtre ; il
 quitte la liste lorsqu’on passe à un autre élève.
 
+Sous **Régulation des paramètres**, le panneau **❓ Questions pour placer le degré**
+liste les questions à poser à l’élève (et un point à observer), avec la réponse
+attendue selon son mobile (Puissance, Tonification, Volume). Chaque réponse est
+notée ✔ Oui ou ✘ Non. Le degré atteint est le plus haut niveau (D2, D3, D4) dont
+toutes les questions sont satisfaites ; les réponses du niveau suivant situent la
+note dans le degré. **Placer sur le curseur** reporte cette proposition, que
+l’évaluateur peut ensuite ajuster, et rédige la justification si elle est vide.
+Les questions se modifient dans `QUIZ` (`coeval-core.js`) sans toucher à la grille.
+
 Le bouton **⛶ Plein écran** de l’en-tête masque les barres du navigateur ; sur
 iPad sans cette fonction, ajouter l’application à l’écran d’accueil.
 
@@ -161,6 +170,7 @@ NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-exchange.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-slider.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-afl1.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-fullscreen-filter-note.cjs
+NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-quiz.cjs
 ```
 
 Chromium est recherché dans `/usr/bin/chromium` ; définir `CHROMIUM_PATH` si besoin.

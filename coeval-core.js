@@ -86,6 +86,81 @@
       }}
   ];
 
+  /* =========================
+     QUESTIONS D'ENTRETIEN — Régulation des paramètres
+     Questions posées à l'élève (ou points observés), selon son mobile (thème).
+     Chaque niveau correspond au degré qu'il permet d'atteindre : un degré est
+     atteint quand toutes les questions de son niveau et des niveaux inférieurs
+     sont satisfaites. « ok » = ce qu'on attend d'une réponse satisfaisante.
+     Le texte peut être adapté ici sans toucher à la grille.
+  ========================= */
+  const QUIZ = {
+    regul:[
+      {level:2, title:"Une régulation existe, sans danger", items:[
+        {id:"q2a", kind:"ask", q:"Qu'as-tu changé depuis ta première série ?",
+          ok:{"":"Cite au moins un paramètre modifié : charge, répétitions, récupération ou vitesse d'exécution."}},
+        {id:"q2b", kind:"see", q:"La charge choisie est sans danger et sollicite réellement l'élève.",
+          ok:{"":"Ni charge qui met en jeu l'intégrité physique, ni charge insignifiante."}}]},
+      {level:3, title:"Régulation appuyée sur un indicateur, cohérente avec le mobile", items:[
+        {id:"q3a", kind:"ask", q:"Sur quoi t'es-tu appuyé pour faire ce changement ?",
+          ok:{"":"Un indicateur précis : une donnée chiffrée ou un ressenti.",
+            "1":"Vitesse d'exécution, explosivité, répétitions réalisées / prévues, ou ressenti de fraîcheur musculaire.",
+            "2":"Série menée au bout sans arrêt, essoufflement, ou brûlure locale supportable.",
+            "3":"Répétitions réalisées / prévues, proximité de l'échec, ou ressenti de congestion / brûlure."}},
+        {id:"q3b", kind:"ask", q:"En quoi ta charge correspond-elle à ton mobile ?",
+          ok:{"":"Relie la charge et la récupération à l'effet recherché.",
+            "1":"Charge permettant une exécution rapide et explosive jusqu'à la dernière répétition ; récupération longue (environ 2 à 3 min).",
+            "2":"Charge légère permettant 15 répétitions ou plus en continu ; récupération courte (moins d'1 min).",
+            "3":"Charge qui amène près de l'échec sur 8 à 12 répétitions ; récupération moyenne (environ 1 à 1 min 30)."}}]},
+      {level:4, title:"Croisement chiffres / ressentis et régulation différée", items:[
+        {id:"q4a", kind:"ask", q:"Quel chiffre ET quel ressenti t'ont fait choisir ta charge ?",
+          ok:{"":"Associe une donnée chiffrée (répétitions, charge, temps) et un ressenti (musculaire, cardio-respiratoire ou psychologique).",
+            "1":"Ex. « 6 répétitions sur 6, toujours rapides, et je me sens frais : j'ajoute 5 kg ».",
+            "2":"Ex. « 20 répétitions sans arrêt mais brûlure forte dès la 12e : je garde la charge et j'allonge un peu la récupération ».",
+            "3":"Ex. « 12 répétitions faites avec deux de réserve et peu de congestion : j'ajoute 2,5 kg »."}},
+        {id:"q4b", kind:"ask", q:"Que changeras-tu à la prochaine séance, et pourquoi ?",
+          ok:{"":"Régulation différée, cohérente avec le mobile et justifiée par ce qui a été relevé.",
+            "1":"Ex. augmenter la charge si la vitesse reste élevée sur toutes les répétitions ; allonger la récupération si elle chute.",
+            "2":"Ex. ajouter des répétitions ou réduire la récupération si la série est facile ; alléger si arrêt avant la fin.",
+            "3":"Ex. augmenter la charge si 12 répétitions sont faciles ; la baisser si moins de 8 sont réalisées."}}]}
+    ]
+  };
+
+  const quizItems = critId => (QUIZ[critId] || []).flatMap(l => l.items.map(it => ({...it, level:l.level})));
+
+  /* Réponses {id: true|false} → degré et points proposés, ou null tant qu'il manque une réponse utile.
+     Degré = plus haut niveau entièrement satisfait (1 si le premier ne l'est pas).
+     Dans le degré : la part de réponses satisfaites au niveau suivant situe la note
+     (bas, milieu ou haut du degré) ; le degré 4 est placé en haut. */
+  function quizDegree(critId, answers) {
+    const levels = QUIZ[critId], crit = critById(critId);
+    if (!levels || !crit) return null;
+    const a = answers || {};
+    let deg = 1;
+    for (const l of levels) {
+      if (l.items.some(it => typeof a[it.id] !== "boolean")) return null;
+      if (l.items.every(it => a[it.id])) deg = l.level; else break;
+    }
+    const next = levels.find(l => l.level === deg + 1);
+    const steps = stepsOf(crit.deg[deg - 1]);
+    let frac = 1;
+    if (next) {
+      const known = next.items.filter(it => typeof a[it.id] === "boolean");
+      frac = known.length ? known.filter(it => a[it.id]).length / next.items.length : 0;
+    }
+    return {d:deg, v:steps[Math.round(frac * (steps.length - 1))]};
+  }
+
+  function cleanQuiz(qz) {
+    const out = {};
+    if (qz && typeof qz === "object") Object.keys(QUIZ).forEach(cid => {
+      const a = get(qz, cid), r = {};
+      if (a && typeof a === "object") quizItems(cid).forEach(it => { if (typeof get(a, it.id) === "boolean") r[it.id] = get(a, it.id); });
+      if (Object.keys(r).length) out[cid] = r;
+    });
+    return out;
+  }
+
   const AFL1_IDS = ["amp", "resp", "post", "param", "ress", "regul"];
   const AFL2_IDS = ["projet", "recueil"];
   /* Évalué avant l'épreuve et transmis au co-évaluateur (préparation) : jamais l'AFL1. */
@@ -692,6 +767,7 @@
     });
     ["split", "theme", "role", "comment"].forEach(k => { ev[k] = typeof ev[k] === "string" ? ev[k] : ""; });
     if (ev.notes != null) { const n = cleanNotes(ev.notes); if (Object.keys(n).length) ev.notes = n; else delete ev.notes; }
+    if (ev.quiz != null) { const qz = cleanQuiz(ev.quiz); if (Object.keys(qz).length) ev.quiz = qz; else delete ev.quiz; }
     ev.updatedAt = typeof ev.updatedAt === "number" ? ev.updatedAt : 0;
     ev.done = !!ev.done;
     return ev;
@@ -934,7 +1010,7 @@
 
   return {
     DATA_VERSION, FORMAT_VERSION, QR_PREFIX, PER_QR,
-    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
+    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, QUIZ, quizItems, quizDegree, cleanQuiz, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
     uid, normName, q4, fmt, hash, clone, own, get, critById,
     inRange, degreeOf, stepsOf, descOf, degreeName, isValidValue, emptyEval, isFilled, scores, missingFields,
     encodeCell, decodeCell,

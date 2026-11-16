@@ -420,9 +420,45 @@
         <input type="range" class="ce-slider" min="0" max="1000" step="1" value="${P[idx >= 0 ? idx : 0]}" data-crit="${crit.id}" data-idx="${idx >= 0 ? idx : 0}"
           data-pos="${P.join(",")}" data-steps="${steps.map(st => st.d + ":" + st.v).join(",")}" aria-label="${esc(crit.label)}" aria-valuetext="${cur ? esc(stepText(crit, cur)) + " point(s)" : "non noté"}"${locked ? " disabled" : ""}>
       </div>
+      ${quizHTML(crit, ev, locked)}
       ${justifHTML(crit, ev, locked)}
     </div>`;
   }
+
+  /* Questions d'entretien (régulation des paramètres) adaptées au mobile de l'élève :
+     les réponses proposent un degré et des points, que l'évaluateur place sur le curseur. */
+  function quizHTML(crit, ev, locked) {
+    const levels = C.QUIZ[crit.id];
+    if (!levels) return "";
+    const a = ev.quiz?.[crit.id] || {};
+    const theme = ev.theme || "";
+    const prop = C.quizDegree(crit.id, a);
+    const items = C.quizItems(crit.id);
+    const answered = items.filter(it => typeof a[it.id] === "boolean").length;
+    const open = !locked && ev.v[crit.id] == null;
+    const same = prop && ev.d[crit.id] === prop.d && ev.v[crit.id] === prop.v;
+    const btn = (it, val, label) => `<button type="button" data-act="quiz" data-crit="${crit.id}" data-q="${it.id}" data-ans="${val ? 1 : 0}"
+      class="${a[it.id] === val ? (val ? "on yes" : "on no") : ""}" aria-pressed="${a[it.id] === val}"${locked ? " disabled" : ""}>${label}</button>`;
+    return `<details class="ce-quiz"${open || answered ? " open" : ""}><summary>❓ Questions pour placer le degré · ${esc(THEMES[theme] || "mobile non renseigné")}</summary>
+      ${theme ? "" : `<p class="ce-hint">Renseigne le thème de l'élève pour des repères propres à son mobile.</p>`}
+      ${levels.map(l => `<div class="ce-quiz-level"><h4><span class="ce-quiz-d d${l.level}">D${l.level}</span> ${esc(l.title)}</h4>
+        ${l.items.map(it => `<div class="ce-quiz-item" data-q="${it.id}">
+          <div class="ce-quiz-q"><b>${it.kind === "see" ? "👁 " : "💬 "}${esc(it.q)}</b><small>Attendu : ${esc(it.ok[theme] || it.ok[""])}</small></div>
+          <div class="ce-quiz-ans">${btn(it, true, "✔ Oui")}${btn(it, false, "✘ Non")}</div></div>`).join("")}</div>`).join("")}
+      <div class="ce-quiz-result">${prop
+        ? `<span>Degré proposé : <b>${esc(stepText(crit, prop))} pt</b></span>${same ? `<span class="ce-quiz-ok">✔ Placé sur le curseur</span>` : `<button type="button" class="ce-primary" data-act="quiz-place" data-crit="${crit.id}"${locked ? " disabled" : ""}>Placer sur le curseur</button>`}`
+        : `<span class="ce-hint">${answered ? "Réponds aux questions restantes du niveau en cours pour obtenir un degré." : "Pose les questions et note chaque réponse."}</span>`}</div>
+    </details>`;
+  }
+
+  /* Justification tirée des réponses : nombre de réponses satisfaisantes et ce qui manque. */
+  function quizSummary(critId, a) {
+    const items = C.quizItems(critId).filter(it => typeof a[it.id] === "boolean");
+    const no = items.filter(it => !a[it.id]);
+    return (`Entretien : ${items.length - no.length}/${items.length} réponses satisfaisantes.`
+      + (no.length ? ` Non satisfait : ${no.map(it => it.q.replace(/\s*[?.]$/, "")).join(" ; ")}.` : "")).slice(0, C.NOTE_MAX);
+  }
+
 
   /* Justification facultative de la note choisie dans le degré (une phrase par critère). */
   function justifHTML(crit, ev, locked) {
@@ -1747,6 +1783,30 @@
       }
       case "candidates": if (ep) openCandidates(ep); break;
       case "eval-filter": evalFilter = evalFilter === el.dataset.filter ? "all" : el.dataset.filter; refilter = true; render(); break;
+      case "quiz": {
+        const e = evalOf(ep, currentId), cand = candById(ep, currentId);
+        if (!W.eligible(cand) || e.done) break;
+        const val = el.dataset.ans === "1", crit = el.dataset.crit;
+        e.quiz = e.quiz || {};
+        const a = e.quiz[crit] = e.quiz[crit] || {};
+        if (a[el.dataset.q] === val) delete a[el.dataset.q]; else a[el.dataset.q] = val;
+        if (!Object.keys(a).length) delete e.quiz[crit];
+        if (!Object.keys(e.quiz).length) delete e.quiz;
+        e.updatedAt = Date.now();
+        save();
+        const y = window.scrollY; render(); window.scrollTo({top:y});
+        break;
+      }
+      case "quiz-place": {
+        const e = evalOf(ep, currentId), crit = el.dataset.crit;
+        const prop = C.quizDegree(crit, e.quiz?.[crit]);
+        if (!prop || e.done) break;
+        setValue(ep, crit, prop.d, prop.v);
+        if (!e.notes?.[crit]) { e.notes = e.notes || {}; e.notes[crit] = quizSummary(crit, e.quiz[crit]); save(); }
+        const y = window.scrollY; render(); window.scrollTo({top:y});
+        toast(`${C.critById(crit).label} : ${stepText(C.critById(crit), prop)} pt placé${e.notes?.[crit]?.startsWith("Entretien") ? ", justification ajoutée" : ""}.`);
+        break;
+      }
       case "pick": currentId = el.dataset.id; editChoices = null; render(); scrollToSheet(); break;
       case "edit-choices": editChoices = editChoices === currentId ? null : currentId; render(); break;
       case "step": {
