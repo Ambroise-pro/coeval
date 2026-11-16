@@ -100,7 +100,12 @@
       pourquoi:"Une charge lourde sur peu de répétitions, poussée le plus vite possible, sollicite la force maximale ; la longue récupération garde la même intensité à chaque série.",
       ressentis:"Fraîcheur, vitesse conservée sur toutes les répétitions, pas de brûlure ni d'essoufflement marqués.",
       indicateurs:"Vitesse d'exécution, répétitions réalisées / prévues, fraîcheur musculaire.",
-      regul:"Toutes les répétitions rapides et faciles → augmenter la charge. La vitesse chute ou des répétitions manquent → alléger ou allonger la récupération.",
+      facile:"Toutes les répétitions rapides et faciles → augmenter la charge.", dur:"La vitesse chute ou des répétitions manquent → alléger ou allonger la récupération.",
+      whyCharge:"80 à 90 % : une charge lourde sollicite la force maximale.", whyReps:"4 à 8 répétitions seulement : au-delà, la vitesse et l'explosivité chutent.",
+      whyRecup:"2 à 3 min : récupération complète pour garder la même vitesse et la même intensité à chaque série.",
+      vitesse:"Montée la plus rapide possible (explosive), descente contrôlée.",
+      whyVitesse:"C'est la vitesse de la montée qui développe la puissance : produire de la force vite.",
+      siVitesse:"Si la vitesse chute, la charge est trop lourde ou la récupération trop courte : on ne travaille plus la puissance.",
       exemple:"« 6 répétitions sur 6, toujours rapides, je me sens frais : j'ajoute 5 kg. »"},
     "2":{nom:"Tonification", but:"Tenir un effort prolongé : endurance de force, affiner et raffermir la silhouette.",
       charge:"40 à 60 % de la RM", series:"4 à 6", reps:"15 à 25", recup:"30 s à 1 min",
@@ -109,7 +114,12 @@
       pourquoi:"Une charge légère permet de longues séries ; la récupération courte entretient la fatigue pour travailler l'endurance du muscle.",
       ressentis:"Brûlure locale supportable, chaleur, essoufflement modéré en fin de série.",
       indicateurs:"Série menée au bout sans arrêt, essoufflement, brûlure locale.",
-      regul:"Série complète facile → ajouter des répétitions ou réduire la récupération. Arrêt avant la fin → alléger ou allonger un peu la récupération.",
+      facile:"Série complète facile → ajouter des répétitions ou réduire la récupération.", dur:"Arrêt avant la fin → alléger ou allonger un peu la récupération.",
+      whyCharge:"40 à 60 % : une charge légère permet d'enchaîner de longues séries.", whyReps:"15 à 25 répétitions : un effort prolongé fait travailler l'endurance du muscle.",
+      whyRecup:"30 s à 1 min : récupération courte, la fatigue s'accumule et entretient l'endurance.",
+      vitesse:"Vitesse régulière et modérée, sans à-coups ni temps d'arrêt.",
+      whyVitesse:"Un rythme régulier permet de tenir l'effort longtemps et garde le muscle sous tension.",
+      siVitesse:"Trop vite : à-coups et perte de contrôle ; trop lent : impossible de finir la série.",
       exemple:"« 20 répétitions sans arrêt mais brûlure forte dès la 12e : je garde la charge et j'allonge la récupération. »"},
     "3":{nom:"Volume", but:"Augmenter le volume musculaire (prise de masse) par une fatigue locale importante.",
       charge:"60 à 80 % de la RM", series:"5 à 7", reps:"8 à 15", recup:"1 min à 1 min 30",
@@ -118,7 +128,12 @@
       pourquoi:"Une charge lourde menée près de l'échec sur 8 à 15 répétitions, avec une récupération incomplète, crée la fatigue qui fait grossir le muscle.",
       ressentis:"Congestion (muscle « gonflé »), brûlure, dernières répétitions très difficiles.",
       indicateurs:"Répétitions réalisées / prévues, proximité de l'échec, congestion.",
-      regul:"Plus de 15 répétitions ou série facile → augmenter la charge. Moins de 8 répétitions → baisser la charge.",
+      facile:"Plus de 15 répétitions ou série facile → augmenter la charge.", dur:"Moins de 8 répétitions → baisser la charge.",
+      whyCharge:"60 à 80 % : une charge assez lourde pour approcher l'échec en 8 à 15 répétitions.", whyReps:"8 à 15 répétitions près de l'échec : la fatigue locale développe le muscle.",
+      whyRecup:"1 min à 1 min 30 : récupération incomplète, la fatigue locale s'accumule.",
+      vitesse:"Lente et contrôlée : environ 2 s à la montée, 2 s à la descente.",
+      whyVitesse:"Plus le muscle travaille longtemps sous tension, plus la fatigue locale, qui développe le volume, est importante.",
+      siVitesse:"Trop vite : le temps sous tension diminue et l'élan remplace le travail du muscle.",
       exemple:"« 15 répétitions avec deux de réserve et peu de congestion : j'ajoute 2,5 kg. »"}
   };
   const byMobile = f => { const o = {}; Object.keys(MOBILES).forEach(t => { o[t] = f(MOBILES[t]); }); return o; };
@@ -129,59 +144,138 @@
   /* =========================
      QUESTIONS D'ENTRETIEN — Régulation des paramètres
      Questions posées par l'évaluateur à l'élève : comprend-il quel mobile il a
-     choisi, quels paramètres il utilise et dans quel but ? Chaque niveau
-     correspond au degré qu'il permet d'atteindre : un degré est atteint quand
-     toutes les questions de son niveau et des niveaux inférieurs sont satisfaites.
-     « ok » = réponse attendue selon le thème ("" = sans thème renseigné) :
-     un texte, ou une liste de lignes.
+     choisi, quels paramètres il utilise, sa respiration, et dans quel but ?
+     Chaque niveau (D2, D3, D4) regroupe des compétences ; chaque compétence a
+     plusieurs questions possibles. Pour chaque élève, une question par compétence
+     est tirée parmi les moins posées de l'épreuve : les questions tournent.
+     Un degré est atteint quand toutes les questions tirées de son niveau et des
+     niveaux inférieurs sont satisfaites.
+     « ok » = réponse attendue selon le thème ("" = sans thème renseigné) :
+     un texte, ou une liste de lignes. Les identifiants ne doivent pas changer
+     (ils relient les réponses déjà enregistrées) ; on peut en ajouter.
   ========================= */
+  const OK_MOBILE = {"":"Nomme son mobile sans hésiter.", ...byMobile(m => `« ${m.nom} ».`)};
+  const OK_BREATH = {"":BREATH, ...byMobile(m => [...BREATH, `Pour ce mobile : ${m.respiration}`])};
+  const OK_WHY_BREATH = {"":["Garder un bon gainage.", "Éviter une descente des viscères."]};
+  const OK_BUT = {"":"Explique l'effet recherché sur son corps.", ...byMobile(m => m.but)};
+  const OK_FEEL = {"":"Associe une donnée chiffrée (répétitions, charge, temps) et un ressenti (musculaire, cardio-respiratoire ou psychologique).",
+    ...byMobile(m => [`Indicateurs : ${m.indicateurs}`, `Ressentis : ${m.ressentis}`, `Exemple : ${m.exemple}`])};
   const QUIZ = {
     regul:[
-      {level:2, title:"Connaît son mobile, ses paramètres et sa respiration", items:[
-        {id:"q2a", q:"Quel mobile as-tu choisi ?",
-          ok:{"":"Nomme son mobile sans hésiter.", ...byMobile(m => `« ${m.nom} ».`)}},
-        {id:"q2b", q:"Quels paramètres utilises-tu ?",
-          ok:{"":"Cite précisément sa charge, ses séries, ses répétitions et sa récupération.", ...byMobile(paramsText)}},
-        {id:"q2c", q:"Quand inspires-tu et quand expires-tu pendant le mouvement ?",
-          ok:{"":BREATH, ...byMobile(m => [...BREATH, `Pour ce mobile : ${m.respiration}`])}},
-        {id:"q2d", q:"Pourquoi expirer pendant l'effort ?",
-          ok:{"":["Garder un bon gainage.", "Éviter une descente des viscères."]}}]},
-      {level:3, title:"Comprend le but de ses paramètres", items:[
-        {id:"q3a", q:"Dans quel but as-tu choisi ce mobile ? Quel effet recherches-tu ?",
-          ok:{"":"Explique l'effet recherché sur son corps.", ...byMobile(m => m.but)}},
-        {id:"q3b", q:"Pourquoi tes paramètres permettent-ils d'atteindre ce but ?",
-          ok:{"":"Relie charge, répétitions et récupération à l'effet recherché.", ...byMobile(m => m.pourquoi)}}]},
-      {level:4, title:"Régule à partir de ce qu'il mesure et ressent", items:[
-        {id:"q4a", q:"Qu'as-tu modifié pendant la séance, à partir de quels chiffres et de quels ressentis ?",
-          ok:{"":"Associe une donnée chiffrée (répétitions, charge, temps) et un ressenti (musculaire, cardio-respiratoire ou psychologique).",
-            ...byMobile(m => [`Indicateurs : ${m.indicateurs}`, `Ressentis : ${m.ressentis}`, `Exemple : ${m.exemple}`])}},
-        {id:"q4b", q:"Que changeras-tu à la prochaine séance, et pourquoi ?",
-          ok:{"":"Régulation pour la séance suivante, cohérente avec le mobile et justifiée par ce qui a été relevé.", ...byMobile(m => m.regul.split(/(?<=\.) /))}}]}
+      {level:2, title:"Connaît son mobile, ses paramètres et sa respiration", topics:[
+        {id:"mobile", label:"Mobile", items:[
+          {id:"q2a", q:"Quel mobile as-tu choisi ?", ok:OK_MOBILE},
+          {id:"q2a2", q:"Sur quel thème t'entraînes-tu aujourd'hui ?", ok:OK_MOBILE},
+          {id:"q2a3", q:"Quel est l'objectif de ta séance ?", ok:OK_MOBILE}]},
+        {id:"params", label:"Paramètres", items:[
+          {id:"q2b", q:"Quels paramètres utilises-tu ?",
+            ok:{"":"Cite précisément sa charge, ses séries, ses répétitions et sa récupération.", ...byMobile(paramsText)}},
+          {id:"q2b2", q:"Combien de séries et de répétitions fais-tu ?",
+            ok:{"":"Donne ses séries et ses répétitions.", ...byMobile(m => [`Séries : ${m.series}`, `Répétitions : ${m.reps}`])}},
+          {id:"q2b3", q:"Quelle charge utilises-tu, en kilos et en pourcentage de ta RM ?",
+            ok:{"":"Donne sa charge en kilos et en % de sa RM.", ...byMobile(m => `Charge en kilos, correspondant à ${m.charge}.`)}},
+          {id:"q2b4", q:"Combien de temps récupères-tu entre deux séries ?",
+            ok:{"":"Donne sa récupération entre deux séries.", ...byMobile(m => `Récupération : ${m.recup}.`)}},
+          {id:"q2b5", q:"À quel rythme exécutes-tu le mouvement ?",
+            ok:{"":"Décrit le rythme de la montée et de la descente.", ...byMobile(m => `Rythme : ${m.rythme}.`)}}]},
+        {id:"breath", label:"Respiration : quand", items:[
+          {id:"q2c", q:"Quand inspires-tu et quand expires-tu pendant le mouvement ?", ok:OK_BREATH},
+          {id:"q2c2", q:"Sur quelle phase du mouvement souffles-tu ?",
+            ok:{"":"Expiration : pendant l'effort (phase concentrique, on pousse ou on tire).", ...byMobile(m => ["Expiration : pendant l'effort (phase concentrique, on pousse ou on tire).", `Pour ce mobile : ${m.respiration}`])}},
+          {id:"q2c3", q:"Que fais-tu de ta respiration quand la charge revient ?",
+            ok:{"":"Inspiration pendant le retour (phase excentrique), sans bloquer sa respiration.", ...byMobile(m => ["Inspiration pendant le retour (phase excentrique), sans bloquer sa respiration.", `Pour ce mobile : ${m.respiration}`])}}]},
+        {id:"whybreath", label:"Respiration : pourquoi", items:[
+          {id:"q2d", q:"Pourquoi expirer pendant l'effort ?", ok:OK_WHY_BREATH},
+          {id:"q2d2", q:"Qu'est-ce que souffler pendant l'effort protège ?", ok:OK_WHY_BREATH},
+          {id:"q2d3", q:"À quoi sert une bonne respiration pendant la série ?", ok:OK_WHY_BREATH}]}]},
+      {level:3, title:"Comprend le but de ses paramètres et de sa vitesse d'exécution", topics:[
+        {id:"but", label:"But du mobile", items:[
+          {id:"q3a", q:"Dans quel but as-tu choisi ce mobile ? Quel effet recherches-tu ?", ok:OK_BUT},
+          {id:"q3a2", q:"Quel effet ton entraînement doit-il avoir sur ton corps ?", ok:OK_BUT},
+          {id:"q3a3", q:"Pourquoi as-tu choisi ce mobile plutôt qu'un autre ?",
+            ok:{"":"Relie son choix à un objectif personnel et à l'effet recherché.", ...byMobile(m => ["Un objectif personnel cohérent avec l'effet recherché.", `Effet : ${m.but}`])}}]},
+        {id:"why", label:"Pourquoi ces paramètres", items:[
+          {id:"q3b", q:"Pourquoi tes paramètres permettent-ils d'atteindre ce but ?",
+            ok:{"":"Relie charge, répétitions et récupération à l'effet recherché.", ...byMobile(m => m.pourquoi)}},
+          {id:"q3b2", q:"Pourquoi ce nombre de répétitions pour ton mobile ?",
+            ok:{"":"Relie le nombre de répétitions à l'effet recherché.", ...byMobile(m => m.whyReps)}},
+          {id:"q3b3", q:"Pourquoi ce temps de récupération ?",
+            ok:{"":"Relie la récupération à l'effet recherché.", ...byMobile(m => m.whyRecup)}},
+          {id:"q3b4", q:"Pourquoi cette charge, en pourcentage de ta RM ?",
+            ok:{"":"Relie l'intensité à l'effet recherché.", ...byMobile(m => m.whyCharge)}}]},
+        {id:"speed", label:"Vitesse d'exécution", items:[
+          {id:"q3c", q:"À quelle vitesse exécutes-tu la montée et la descente, et pourquoi ?",
+            ok:{"":"Décrit la vitesse de la montée et de la descente et la relie à son mobile.", ...byMobile(m => [`Vitesse : ${m.vitesse}`, `Pourquoi : ${m.whyVitesse}`])}},
+          {id:"q3c2", q:"Pourquoi ta vitesse d'exécution est-elle adaptée à ton mobile ?",
+            ok:{"":"Relie la vitesse d'exécution à l'effet recherché.", ...byMobile(m => [m.whyVitesse, `Vitesse attendue : ${m.vitesse}`])}},
+          {id:"q3c3", q:"Que se passerait-il si tu exécutais le mouvement plus vite, ou plus lentement ?",
+            ok:{"":"Explique ce que changerait une autre vitesse pour son mobile.", ...byMobile(m => [m.siVitesse, `Vitesse attendue : ${m.vitesse}`])}},
+          {id:"q3c4", q:"Comment contrôles-tu la vitesse de la descente ?",
+            ok:{"":["Freine la charge pendant la descente (phase excentrique), sans la laisser tomber.", "Pour la sécurité et pour faire travailler le muscle aussi au retour."],
+              ...byMobile(m => ["Freine la charge pendant la descente (phase excentrique), sans la laisser tomber : sécurité et travail du muscle au retour.", `Pour ce mobile : ${m.vitesse}`])}}]}]},
+      {level:4, title:"Régule à partir de ce qu'il mesure et ressent", topics:[
+        {id:"now", label:"Régulation pendant la séance", items:[
+          {id:"q4a", q:"Qu'as-tu modifié pendant la séance, à partir de quels chiffres et de quels ressentis ?", ok:OK_FEEL},
+          {id:"q4a2", q:"Comment sais-tu que ta charge est adaptée ? Donne un chiffre et un ressenti.", ok:OK_FEEL},
+          {id:"q4a3", q:"Raconte ta dernière série : combien de répétitions, qu'as-tu ressenti, qu'as-tu décidé ?", ok:OK_FEEL},
+          {id:"q4a4", q:"Quel ressenti te ferait baisser ta charge ? Et lequel te la ferait augmenter ?",
+            ok:{"":"Cite un ressenti qui fait alléger et un qui fait charger.", ...byMobile(m => [`Ressentis attendus : ${m.ressentis}`, m.facile, m.dur])}}]},
+        {id:"next", label:"Régulation pour la suite", items:[
+          {id:"q4b", q:"Que changeras-tu à la prochaine séance, et pourquoi ?",
+            ok:{"":"Régulation pour la séance suivante, cohérente avec le mobile et justifiée par ce qui a été relevé.", ...byMobile(m => [m.facile, m.dur])}},
+          {id:"q4b2", q:"Si ta dernière série était trop facile, que changerais-tu la prochaine fois ?",
+            ok:{"":"Propose un changement précis pour rendre l'effort plus exigeant.", ...byMobile(m => m.facile)}},
+          {id:"q4b3", q:"Si tu n'arrivais pas à finir tes répétitions, que ferais-tu à la prochaine séance ?",
+            ok:{"":"Propose un changement précis pour rendre l'effort réalisable.", ...byMobile(m => m.dur)}}]}]}
     ]
   };
 
-  const quizItems = critId => (QUIZ[critId] || []).flatMap(l => l.items.map(it => ({...it, level:l.level})));
+  const quizItems = critId => (QUIZ[critId] || []).flatMap(l => l.topics.flatMap(t => t.items.map(it => ({...it, level:l.level, topic:t.id}))));
+
+  /* Question retenue pour chaque compétence : celle tirée pour l'élève, sinon celle
+     déjà répondue, sinon la première. */
+  function quizPicked(critId, pick, answers) {
+    const p = pick || {}, a = answers || {};
+    return (QUIZ[critId] || []).flatMap(l => l.topics.map(t => {
+      const it = t.items.find(x => x.id === p[t.id]) || t.items.find(x => typeof a[x.id] === "boolean") || t.items[0];
+      return {...it, level:l.level, topic:t.id};
+    }));
+  }
+
+  /* Tirage : pour chaque compétence, une des questions les moins posées jusqu'ici
+     (used = {id: nombre de fois tirée}), au hasard parmi les ex æquo.
+     keep = {compétence: id} déjà fixées, conservées telles quelles. */
+  function quizDraw(critId, used, rand = Math.random, keep) {
+    const out = {}, u = used || {};
+    (QUIZ[critId] || []).forEach(l => l.topics.forEach(t => {
+      if (keep && t.items.some(it => it.id === keep[t.id])) { out[t.id] = keep[t.id]; return; }
+      const min = Math.min(...t.items.map(it => u[it.id] || 0));
+      const pool = t.items.filter(it => (u[it.id] || 0) === min);
+      out[t.id] = pool[Math.floor(rand() * pool.length) % pool.length].id;
+    }));
+    return out;
+  }
 
   /* Réponses {id: true|false} → degré et points proposés, ou null tant qu'il manque une réponse utile.
+     Seules comptent les questions retenues (une par compétence).
      Degré = plus haut niveau entièrement satisfait (1 si le premier ne l'est pas).
      Dans le degré : la part de réponses satisfaites au niveau suivant situe la note
      (bas, milieu ou haut du degré) ; le degré 4 est placé en haut. */
-  function quizDegree(critId, answers) {
+  function quizDegree(critId, answers, pick) {
     const levels = QUIZ[critId], crit = critById(critId);
     if (!levels || !crit) return null;
     const a = answers || {};
+    const picked = quizPicked(critId, pick, a);
+    const at = lv => picked.filter(it => it.level === lv);
     let deg = 1;
     for (const l of levels) {
-      if (l.items.some(it => typeof a[it.id] !== "boolean")) return null;
-      if (l.items.every(it => a[it.id])) deg = l.level; else break;
+      const items = at(l.level);
+      if (items.some(it => typeof a[it.id] !== "boolean")) return null;
+      if (items.every(it => a[it.id])) deg = l.level; else break;
     }
-    const next = levels.find(l => l.level === deg + 1);
+    const next = at(deg + 1);
     const steps = stepsOf(crit.deg[deg - 1]);
-    let frac = 1;
-    if (next) {
-      const known = next.items.filter(it => typeof a[it.id] === "boolean");
-      frac = known.length ? known.filter(it => a[it.id]).length / next.items.length : 0;
-    }
+    const frac = next.length ? next.filter(it => a[it.id] === true).length / next.length : 1;
     return {d:deg, v:steps[Math.round(frac * (steps.length - 1))]};
   }
 
@@ -190,6 +284,16 @@
     if (qz && typeof qz === "object") Object.keys(QUIZ).forEach(cid => {
       const a = get(qz, cid), r = {};
       if (a && typeof a === "object") quizItems(cid).forEach(it => { if (typeof get(a, it.id) === "boolean") r[it.id] = get(a, it.id); });
+      if (Object.keys(r).length) out[cid] = r;
+    });
+    return out;
+  }
+
+  function cleanPick(pk) {
+    const out = {};
+    if (pk && typeof pk === "object") Object.keys(QUIZ).forEach(cid => {
+      const p = get(pk, cid), r = {};
+      if (p && typeof p === "object") QUIZ[cid].forEach(l => l.topics.forEach(t => { const v = get(p, t.id); if (t.items.some(it => it.id === v)) r[t.id] = v; }));
       if (Object.keys(r).length) out[cid] = r;
     });
     return out;
@@ -802,6 +906,7 @@
     ["split", "theme", "role", "comment"].forEach(k => { ev[k] = typeof ev[k] === "string" ? ev[k] : ""; });
     if (ev.notes != null) { const n = cleanNotes(ev.notes); if (Object.keys(n).length) ev.notes = n; else delete ev.notes; }
     if (ev.quiz != null) { const qz = cleanQuiz(ev.quiz); if (Object.keys(qz).length) ev.quiz = qz; else delete ev.quiz; }
+    if (ev.quizPick != null) { const pk = cleanPick(ev.quizPick); if (Object.keys(pk).length) ev.quizPick = pk; else delete ev.quizPick; }
     ev.updatedAt = typeof ev.updatedAt === "number" ? ev.updatedAt : 0;
     ev.done = !!ev.done;
     return ev;
@@ -1044,7 +1149,7 @@
 
   return {
     DATA_VERSION, FORMAT_VERSION, QR_PREFIX, PER_QR,
-    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, MOBILES, QUIZ, quizItems, quizDegree, cleanQuiz, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
+    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, MOBILES, QUIZ, quizItems, quizPicked, quizDraw, quizDegree, cleanQuiz, cleanPick, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
     uid, normName, q4, fmt, hash, clone, own, get, critById,
     inRange, degreeOf, stepsOf, descOf, degreeName, isValidValue, emptyEval, isFilled, scores, missingFields,
     encodeCell, decodeCell,

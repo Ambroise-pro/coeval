@@ -629,6 +629,7 @@ dialog.ce-quiz-dlg .ce-dialog{padding:0;max-height:calc(100dvh - 24px);overflow:
 .ce-quiz-item{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid #e2e8f0}
 .ce-quiz-q{min-width:0}
 .ce-quiz-q b{display:block;font-size:15px}
+.ce-quiz-swap{margin-top:6px;min-height:36px;padding:4px 10px;font-size:13px;border-radius:8px;color:var(--ce-primary)}
 .ce-quiz-exp{color:#334155;font-size:13px;margin-top:3px;background:#f8fafc;border-left:3px solid var(--ce-primary);border-radius:4px;padding:4px 8px}
 .ce-quiz-exp>span{font-weight:700;color:var(--ce-primary)}
 .ce-quiz-exp ul{margin:2px 0 0;padding-left:18px}

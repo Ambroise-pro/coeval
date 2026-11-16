@@ -101,7 +101,10 @@ Sous **Régulation des paramètres**, le bouton **❓ Questions d’entretien** 
 fenêtre qui liste les questions que l’évaluateur pose à l’élève (comprend-il son mobile, ses
 paramètres, sa respiration et leur but ?), avec la réponse
 attendue selon son mobile (Puissance, Tonification, Volume). Chaque réponse est
-notée ✔ Oui ou ✘ Non. Le degré atteint est le plus haut niveau (D2, D3, D4) dont
+notée ✔ Oui ou ✘ Non. Les questions tournent : chaque compétence (mobile,
+paramètres, respiration, but, vitesse d’exécution, régulation…) a plusieurs
+questions possibles, et chaque élève reçoit, pour chacune, l’une des moins posées
+de l’épreuve. **🔄 Autre question** en propose une autre sur le même point. Le degré atteint est le plus haut niveau (D2, D3, D4) dont
 toutes les questions sont satisfaites ; les réponses du niveau suivant situent la
 note dans le degré. **Placer sur le curseur** reporte cette proposition, que
 l’évaluateur peut ensuite ajuster, et rédige la justification si elle est vide.

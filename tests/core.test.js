@@ -441,16 +441,30 @@ test("questions d'entretien : degré proposé selon les réponses, réponses net
   assert.deepEqual(d({q2a:true, q2b:true, q2c:false, q2d:false}), {d:1, v:.25});
   assert.equal(d({q2a:true, q2b:false}), null, "toutes les questions du niveau doivent être renseignées");
   assert.equal(d({q2a:true, q2b:true, q2c:true, q2d:true}), null, "le niveau suivant doit être renseigné");
-  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:false, q3b:false}), {d:2, v:.5});
-  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:false}), {d:2, v:.75});
-  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:true, q4a:false, q4b:false}), {d:3, v:1});
-  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:true, q4a:true, q4b:false}), {d:3, v:1.25});
-  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:true, q4a:true, q4b:true}), {d:4, v:2});
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:false, q3b:false, q3c:false}), {d:2, v:.5});
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:false, q3c:false}), {d:2, v:.75});
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:true, q3c:true, q4a:false, q4b:false}), {d:3, v:1});
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:true, q3c:true, q4a:true, q4b:false}), {d:3, v:1.25});
+  assert.deepEqual(d({q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:true, q3c:true, q4a:true, q4b:true}), {d:4, v:2});
   ["1", "2", "3"].forEach(t => C.quizItems("regul").forEach(it => assert.ok(it.ok[t] || it.ok[""], `${it.id} thème ${t}`)));
+  // Rotation : une question par compétence, la moins posée d'abord.
+  const topics = C.QUIZ.regul.flatMap(l => l.topics);
+  assert.ok(C.quizItems("regul").length >= 20 && topics.every(t => t.items.length >= 3), "plusieurs questions par compétence");
+  assert.equal(new Set(C.quizItems("regul").map(it => it.id)).size, C.quizItems("regul").length, "identifiants uniques");
+  const used = {}, seen = [];
+  for (let i = 0; i < 3; i++) { const pk = C.quizDraw("regul", used); seen.push(pk); Object.values(pk).forEach(id => { used[id] = (used[id] || 0) + 1; }); }
+  topics.forEach(t => assert.equal(new Set(seen.map(pk => pk[t.id])).size, 3, `${t.id} : trois élèves, trois questions différentes`));
+  assert.equal(C.quizDraw("regul", {}, Math.random, {mobile:"q2a3"}).mobile, "q2a3", "question gardée");
+  const pick = {mobile:"q2a2", params:"q2b3", breath:"q2c", whybreath:"q2d", but:"q3a", why:"q3b"};
+  assert.equal(C.quizDegree("regul", {q2a:true, q2b:true, q2c:true, q2d:true, q3a:true, q3b:true}, pick), null, "seules les questions tirées comptent");
+  assert.deepEqual(C.quizDegree("regul", {q2a2:true, q2b3:true, q2c:true, q2d:true, q3a:false, q3b:false, q3c:false}, pick), {d:2, v:.5});
+  const ep2 = {candidates:[], mine:{a:{v:{}, d:{}, quizPick:{regul:{mobile:"q2a2", params:"zzz"}, autre:{x:"y"}}}}};
+  C.migrateEpreuve(ep2, "Moi");
+  assert.deepEqual(ep2.mine.a.quizPick, {regul:{mobile:"q2a2"}});
   assert.deepEqual(Object.keys(C.MOBILES), Object.keys(C.THEMES));
   Object.entries(C.MOBILES).forEach(([t, m]) => {
     assert.equal(m.nom, C.THEMES[t]);
-    ["but", "charge", "series", "reps", "recup", "rythme", "respiration", "pourquoi", "ressentis", "indicateurs", "regul", "exemple"].forEach(k => assert.ok(m[k], `${m.nom}.${k}`));
+    ["but", "charge", "series", "reps", "recup", "rythme", "respiration", "pourquoi", "ressentis", "indicateurs", "facile", "dur", "whyCharge", "whyReps", "whyRecup", "vitesse", "whyVitesse", "siVitesse", "exemple"].forEach(k => assert.ok(m[k], `${m.nom}.${k}`));
     assert.match(m.charge, /% de la RM$/);
   });
   assert.equal(C.quizItems("regul").find(it => it.id === "q2b").ok["3"][0], "Charge : 60 à 80\u00a0% de la RM");

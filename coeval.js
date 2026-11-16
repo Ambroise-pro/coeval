@@ -430,10 +430,11 @@
   /* Sous le critère : un bouton qui ouvre le questionnaire, avec l'avancement des réponses. */
   function quizHTML(crit, ev, locked) {
     if (!C.QUIZ[crit.id]) return "";
-    const a = ev.quiz?.[crit.id] || {};
-    const total = C.quizItems(crit.id).length;
-    const answered = C.quizItems(crit.id).filter(it => typeof a[it.id] === "boolean").length;
-    const prop = C.quizDegree(crit.id, a);
+    const a = ev.quiz?.[crit.id] || {}, pick = ev.quizPick?.[crit.id];
+    const picked = C.quizPicked(crit.id, pick, a);
+    const total = picked.length;
+    const answered = picked.filter(it => typeof a[it.id] === "boolean").length;
+    const prop = C.quizDegree(crit.id, a, pick);
     return `<div class="ce-quiz-open"><button type="button" data-act="quiz-open" data-crit="${crit.id}">❓ Questions d'entretien</button>
       ${answered ? `<span class="ce-hint">${answered}/${total} réponses${prop ? ` · proposé ${esc(stepText(crit, prop))} pt` : ""}</span>` : ""}</div>`;
   }
@@ -442,10 +443,11 @@
      que l'évaluateur place sur le curseur. */
   function quizDialogHTML(crit, ev, cand, locked) {
     const levels = C.QUIZ[crit.id];
-    const a = ev.quiz?.[crit.id] || {};
+    const a = ev.quiz?.[crit.id] || {}, pick = ev.quizPick?.[crit.id];
     const theme = ev.theme || "";
-    const prop = C.quizDegree(crit.id, a);
-    const answered = C.quizItems(crit.id).filter(it => typeof a[it.id] === "boolean").length;
+    const prop = C.quizDegree(crit.id, a, pick);
+    const picked = C.quizPicked(crit.id, pick, a);
+    const answered = picked.filter(it => typeof a[it.id] === "boolean").length;
     const same = prop && ev.d[crit.id] === prop.d && ev.v[crit.id] === prop.v;
     const btn = (it, val, label) => `<button type="button" data-act="quiz" data-crit="${crit.id}" data-q="${it.id}" data-ans="${val ? 1 : 0}"
       class="${a[it.id] === val ? (val ? "on yes" : "on no") : ""}" aria-pressed="${a[it.id] === val}"${locked ? " disabled" : ""}>${label}</button>`;
@@ -454,8 +456,9 @@
       <p class="ce-quiz-sub">Mobile : <b>${esc(THEMES[theme] || "non renseigné")}</b>${locked ? " · 🔒 lecture seule" : ""}</p>
       ${theme ? "" : `<p class="ce-hint">Renseigne le thème de l'élève pour des repères propres à son mobile.</p>`}
       ${levels.map(l => `<div class="ce-quiz-level"><h4><span class="ce-quiz-d d${l.level}">D${l.level}</span> ${esc(l.title)}</h4>
-        ${l.items.map(it => `<div class="ce-quiz-item" data-q="${it.id}">
-          <div class="ce-quiz-q"><b>💬 ${esc(it.q)}</b>${expectHTML(it.ok[theme] || it.ok[""])}</div>
+        ${picked.filter(it => it.level === l.level).map(it => `<div class="ce-quiz-item" data-q="${it.id}" data-topic="${it.topic}">
+          <div class="ce-quiz-q"><b>💬 ${esc(it.q)}</b>${expectHTML(it.ok[theme] || it.ok[""])}
+            ${locked ? "" : `<button type="button" class="ce-quiz-swap" data-act="quiz-swap" data-crit="${crit.id}" data-topic="${it.topic}" title="Poser une autre question sur ce point">🔄 Autre question</button>`}</div>
           <div class="ce-quiz-ans">${btn(it, true, "✔ Oui")}${btn(it, false, "✘ Non")}</div></div>`).join("")}</div>`).join("")}
       <div class="ce-quiz-result">${prop
         ? `<span>Degré proposé : <b>${esc(stepText(crit, prop))} pt</b></span>${same ? `<span class="ce-quiz-ok">✔ Placé sur le curseur</span>` : `<button type="button" class="ce-primary" data-act="quiz-place" data-crit="${crit.id}"${locked ? " disabled" : ""}>Placer sur le curseur</button>`}`
@@ -463,9 +466,30 @@
     </div>`;
   }
 
+  /* Nombre de fois où chaque question a déjà été tirée dans l'épreuve (rotation). */
+  function quizUsage(ep, critId, exceptId) {
+    const used = {};
+    Object.entries(ep.mine || {}).forEach(([cid, e]) => {
+      if (cid === exceptId) return;
+      Object.values(e?.quizPick?.[critId] || {}).forEach(id => { used[id] = (used[id] || 0) + 1; });
+    });
+    return used;
+  }
+
+  /* À la première ouverture pour un élève, tire ses questions ; celles déjà répondues sont gardées. */
+  function ensureQuizPick(ep, ev, critId) {
+    if (ev.quizPick?.[critId]) return;
+    const keep = {};
+    C.quizPicked(critId, null, ev.quiz?.[critId]).forEach(it => { if (typeof ev.quiz?.[critId]?.[it.id] === "boolean") keep[it.topic] = it.id; });
+    ev.quizPick = ev.quizPick || {};
+    ev.quizPick[critId] = C.quizDraw(critId, quizUsage(ep, critId, currentId), Math.random, keep);
+    save();
+  }
+
   function openQuiz(ep, critId) {
     const cand = candById(ep, currentId), ev = evalOf(ep, currentId);
     const locked = !!ev.done || !W.eligible(cand);
+    if (!locked) ensureQuizPick(ep, ev, critId);
     const dlg = $("ceDialog"), y = dlg.open ? dlg.querySelector(".ce-dialog")?.scrollTop || 0 : 0;
     openDialog(quizDialogHTML(C.critById(critId), ev, cand, locked));
     dlg.classList.add("ce-quiz-dlg");
@@ -482,8 +506,8 @@
   }
 
   /* Justification tirée des réponses : nombre de réponses satisfaisantes et ce qui manque. */
-  function quizSummary(critId, a) {
-    const items = C.quizItems(critId).filter(it => typeof a[it.id] === "boolean");
+  function quizSummary(critId, a, pick) {
+    const items = C.quizPicked(critId, pick, a).filter(it => typeof a[it.id] === "boolean");
     const no = items.filter(it => !a[it.id]);
     return (`Entretien : ${items.length - no.length}/${items.length} réponses satisfaisantes.`
       + (no.length ? ` Non satisfait : ${no.map(it => it.q.replace(/\s*[?.]$/, "")).join(" ; ")}.` : "")).slice(0, C.NOTE_MAX);
@@ -1829,13 +1853,29 @@
         break;
       }
       case "quiz-open": openQuiz(ep, el.dataset.crit); break;
+      case "quiz-swap": {
+        const e = evalOf(ep, currentId), crit = el.dataset.crit, topicId = el.dataset.topic;
+        if (e.done || !W.eligible(candById(ep, currentId))) break;
+        ensureQuizPick(ep, e, crit);
+        const topic = C.QUIZ[crit].flatMap(l => l.topics).find(t => t.id === topicId);
+        const cur = e.quizPick[crit][topicId], others = topic.items.filter(it => it.id !== cur);
+        if (!others.length) break;
+        const used = quizUsage(ep, crit, currentId), min = Math.min(...others.map(it => used[it.id] || 0));
+        const pool = others.filter(it => (used[it.id] || 0) === min);
+        e.quizPick[crit][topicId] = pool[Math.floor(Math.random() * pool.length)].id;
+        if (e.quiz?.[crit]) { delete e.quiz[crit][cur]; if (!Object.keys(e.quiz[crit]).length) delete e.quiz[crit]; if (!Object.keys(e.quiz).length) delete e.quiz; }
+        save();
+        const y = window.scrollY; render(); window.scrollTo({top:y});
+        openQuiz(ep, crit);
+        break;
+      }
       case "quiz-close": closeDialog(); break;
       case "quiz-place": {
         const e = evalOf(ep, currentId), crit = el.dataset.crit;
-        const prop = C.quizDegree(crit, e.quiz?.[crit]);
+        const prop = C.quizDegree(crit, e.quiz?.[crit], e.quizPick?.[crit]);
         if (!prop || e.done) break;
         setValue(ep, crit, prop.d, prop.v);
-        if (!e.notes?.[crit]) { e.notes = e.notes || {}; e.notes[crit] = quizSummary(crit, e.quiz[crit]); save(); }
+        if (!e.notes?.[crit]) { e.notes = e.notes || {}; e.notes[crit] = quizSummary(crit, e.quiz[crit], e.quizPick?.[crit]); save(); }
         closeDialog();
         const y = window.scrollY; render(); window.scrollTo({top:y});
         toast(`${C.critById(crit).label} : ${stepText(C.critById(crit), prop)} pt placé${e.notes?.[crit]?.startsWith("Entretien") ? ", justification ajoutée" : ""}.`);
