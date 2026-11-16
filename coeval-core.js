@@ -145,7 +145,7 @@
         {id:"q2c", q:"Quand inspires-tu et quand expires-tu pendant le mouvement ?",
           ok:{"":BREATH, ...byMobile(m => [...BREATH, `Pour ce mobile : ${m.respiration}`])}},
         {id:"q2d", q:"Pourquoi expirer pendant l'effort ?",
-          ok:{"":"Pour éviter l'apnée, qui fait monter la pression dans le thorax et la tête (vertiges, malaise), et garder un bon gainage ; l'inspiration au retour prépare la répétition suivante."}}]},
+          ok:{"":["Garder un bon gainage.", "Éviter une descente des viscères."]}}]},
       {level:3, title:"Comprend le but de ses paramètres", items:[
         {id:"q3a", q:"Dans quel but as-tu choisi ce mobile ? Quel effet recherches-tu ?",
           ok:{"":"Explique l'effet recherché sur son corps.", ...byMobile(m => m.but)}},
