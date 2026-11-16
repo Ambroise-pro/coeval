@@ -105,9 +105,12 @@ notée ✔ Oui ou ✘ Non. Les questions tournent : chaque compétence (mobile,
 paramètres, respiration, but, vitesse d’exécution, régulation…) a plusieurs
 questions possibles. Pour chaque élève, le questionnaire pose deux questions par
 degré (D2, D3, D4) : deux compétences parmi les moins abordées de l’épreuve, et
-pour chacune l’une des questions les moins posées. **🔄 Autre question** en propose une autre sur le même point. Le degré atteint est le plus haut niveau (D2, D3, D4) dont
-toutes les questions sont satisfaites ; les réponses du niveau suivant situent la
-note dans le degré. **Placer sur le curseur** reporte cette proposition, que
+pour chacune l’une des questions les moins posées. **🔄 Autre question** en propose une autre sur le même point.
+Le questionnement descend : on pose d’abord les deux questions du degré 4 ; si
+elles sont satisfaites, l’élève est en degré 4. Sinon viennent les deux questions
+du degré 3, puis celles du degré 2. Le premier degré entièrement satisfait est
+retenu (degré 1 si même le degré 2 ne l’est pas) ; les réponses du degré du
+dessus situent la note dans le degré. **Placer sur le curseur** reporte cette proposition, que
 l’évaluateur peut ensuite ajuster, et rédige la justification si elle est vide.
 Sous chaque question, la **réponse attendue** est donnée pour le mobile de l’élève :
 charge en % de la répétition maximale (RM), séries, répétitions, récupération,
