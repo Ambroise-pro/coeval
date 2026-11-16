@@ -87,46 +87,67 @@
   ];
 
   /* =========================
+     REPÈRES PAR MOBILE — réponses attendues de l'élève
+     Fourchettes usuelles en musculation scolaire ; à ajuster ici si l'équipe
+     EPS retient d'autres valeurs (la grille n'est pas concernée).
+     RM = répétition maximale (charge soulevable une seule fois).
+  ========================= */
+  const MOBILES = {
+    "1":{nom:"Puissance", but:"Produire le plus de force possible le plus vite possible : gagner en explosivité, en tonicité, en vitesse.",
+      charge:"50 à 70 % de la RM", series:"3 à 5", reps:"6 à 8", recup:"2 à 3 min (récupération complète)",
+      rythme:"Explosif à la montée, contrôlé à la descente",
+      pourquoi:"Une charge moyenne laisse bouger vite ; peu de répétitions et une longue récupération gardent la même vitesse jusqu'à la dernière.",
+      ressentis:"Fraîcheur, vitesse conservée sur toutes les répétitions, pas de brûlure ni d'essoufflement marqués.",
+      indicateurs:"Vitesse d'exécution, répétitions réalisées / prévues, fraîcheur musculaire.",
+      regul:"Toutes les répétitions rapides et faciles → augmenter la charge. La vitesse chute ou des répétitions manquent → alléger ou allonger la récupération.",
+      exemple:"« 6 répétitions sur 6, toujours rapides, je me sens frais : j'ajoute 5 kg. »"},
+    "2":{nom:"Tonification", but:"Tenir un effort prolongé : endurance de force, affiner et raffermir la silhouette.",
+      charge:"40 à 60 % de la RM", series:"3 à 5", reps:"15 à 25 (ou plus)", recup:"30 s à 1 min",
+      rythme:"Régulier et continu, sans temps d'arrêt",
+      pourquoi:"Une charge légère permet de longues séries ; la récupération courte entretient la fatigue pour travailler l'endurance du muscle.",
+      ressentis:"Brûlure locale supportable, chaleur, essoufflement modéré en fin de série.",
+      indicateurs:"Série menée au bout sans arrêt, essoufflement, brûlure locale.",
+      regul:"Série complète facile → ajouter des répétitions ou réduire la récupération. Arrêt avant la fin → alléger ou allonger un peu la récupération.",
+      exemple:"« 20 répétitions sans arrêt mais brûlure forte dès la 12e : je garde la charge et j'allonge la récupération. »"},
+    "3":{nom:"Volume", but:"Augmenter le volume musculaire (prise de masse) par une fatigue locale importante.",
+      charge:"70 à 85 % de la RM", series:"4 à 6", reps:"8 à 12", recup:"1 min à 1 min 30",
+      rythme:"Lent et contrôlé (ex. 2 s à la montée, 2 s à la descente)",
+      pourquoi:"Une charge lourde menée près de l'échec sur 8 à 12 répétitions, avec une récupération incomplète, crée la fatigue qui fait grossir le muscle.",
+      ressentis:"Congestion (muscle « gonflé »), brûlure, dernières répétitions très difficiles.",
+      indicateurs:"Répétitions réalisées / prévues, proximité de l'échec, congestion.",
+      regul:"Plus de 12 répétitions ou série facile → augmenter la charge. Moins de 8 répétitions → baisser la charge.",
+      exemple:"« 12 répétitions avec deux de réserve et peu de congestion : j'ajoute 2,5 kg. »"}
+  };
+  const byMobile = f => { const o = {}; Object.keys(MOBILES).forEach(t => { o[t] = f(MOBILES[t]); }); return o; };
+  const paramsText = m => [`Charge : ${m.charge}`, `Séries : ${m.series}`, `Répétitions : ${m.reps}`, `Récupération : ${m.recup}`, `Rythme : ${m.rythme}`];
+
+  /* =========================
      QUESTIONS D'ENTRETIEN — Régulation des paramètres
      Questions posées par l'évaluateur à l'élève : comprend-il quel mobile il a
      choisi, quels paramètres il utilise et dans quel but ? Chaque niveau
      correspond au degré qu'il permet d'atteindre : un degré est atteint quand
      toutes les questions de son niveau et des niveaux inférieurs sont satisfaites.
-     « ok » = réponse attendue, selon le thème ("" = repère commun).
-     Le texte peut être adapté ici sans toucher à la grille.
+     « ok » = réponse attendue selon le thème ("" = sans thème renseigné) :
+     un texte, ou une liste de lignes.
   ========================= */
   const QUIZ = {
     regul:[
       {level:2, title:"Connaît son mobile et ses paramètres", items:[
         {id:"q2a", q:"Quel mobile as-tu choisi ?",
-          ok:{"":"Nomme son mobile sans hésiter.",
-            "1":"« Puissance » : être plus explosif, produire de la force vite.",
-            "2":"« Tonification » : endurance de force, affiner et raffermir.",
-            "3":"« Volume » : augmenter le volume musculaire."}},
+          ok:{"":"Nomme son mobile sans hésiter.", ...byMobile(m => `« ${m.nom} ».`)}},
         {id:"q2b", q:"Quels paramètres utilises-tu ?",
-          ok:{"":"Cite précisément sa charge, ses séries, ses répétitions et sa récupération."}}]},
+          ok:{"":"Cite précisément sa charge, ses séries, ses répétitions et sa récupération.", ...byMobile(paramsText)}}]},
       {level:3, title:"Comprend le but de ses paramètres", items:[
         {id:"q3a", q:"Dans quel but as-tu choisi ce mobile ? Quel effet recherches-tu ?",
-          ok:{"":"Explique l'effet recherché sur son corps.",
-            "1":"Produire le plus de force le plus vite possible : gagner en explosivité, en tonicité.",
-            "2":"Tenir un effort prolongé : endurance musculaire, affiner et raffermir la silhouette.",
-            "3":"Prendre du volume : fatigue locale importante pour développer le muscle."}},
+          ok:{"":"Explique l'effet recherché sur son corps.", ...byMobile(m => m.but)}},
         {id:"q3b", q:"Pourquoi tes paramètres permettent-ils d'atteindre ce but ?",
-          ok:{"":"Relie charge, répétitions et récupération à l'effet recherché.",
-            "1":"Charge permettant une exécution rapide et explosive jusqu'à la dernière répétition ; récupération longue (environ 2 à 3 min).",
-            "2":"Charge légère permettant 15 répétitions ou plus en continu ; récupération courte (moins d'1 min).",
-            "3":"Charge qui amène près de l'échec sur 8 à 12 répétitions ; récupération moyenne (environ 1 à 1 min 30)."}}]},
+          ok:{"":"Relie charge, répétitions et récupération à l'effet recherché.", ...byMobile(m => m.pourquoi)}}]},
       {level:4, title:"Régule à partir de ce qu'il mesure et ressent", items:[
         {id:"q4a", q:"Qu'as-tu modifié pendant la séance, à partir de quels chiffres et de quels ressentis ?",
           ok:{"":"Associe une donnée chiffrée (répétitions, charge, temps) et un ressenti (musculaire, cardio-respiratoire ou psychologique).",
-            "1":"Ex. « 6 répétitions sur 6, toujours rapides, et je me sens frais : j'ajoute 5 kg ».",
-            "2":"Ex. « 20 répétitions sans arrêt mais brûlure forte dès la 12e : je garde la charge et j'allonge un peu la récupération ».",
-            "3":"Ex. « 12 répétitions faites avec deux de réserve et peu de congestion : j'ajoute 2,5 kg »."}},
+            ...byMobile(m => [`Indicateurs : ${m.indicateurs}`, `Ressentis : ${m.ressentis}`, `Exemple : ${m.exemple}`])}},
         {id:"q4b", q:"Que changeras-tu à la prochaine séance, et pourquoi ?",
-          ok:{"":"Régulation pour la séance suivante, cohérente avec le mobile et justifiée par ce qui a été relevé.",
-            "1":"Ex. augmenter la charge si la vitesse reste élevée sur toutes les répétitions ; allonger la récupération si elle chute.",
-            "2":"Ex. ajouter des répétitions ou réduire la récupération si la série est facile ; alléger si arrêt avant la fin.",
-            "3":"Ex. augmenter la charge si 12 répétitions sont faciles ; la baisser si moins de 8 sont réalisées."}}]}
+          ok:{"":"Régulation pour la séance suivante, cohérente avec le mobile et justifiée par ce qui a été relevé.", ...byMobile(m => m.regul.split(/(?<=\.) /))}}]}
     ]
   };
 
@@ -1014,7 +1035,7 @@
 
   return {
     DATA_VERSION, FORMAT_VERSION, QR_PREFIX, PER_QR,
-    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, QUIZ, quizItems, quizDegree, cleanQuiz, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
+    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, MOBILES, QUIZ, quizItems, quizDegree, cleanQuiz, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
     uid, normName, q4, fmt, hash, clone, own, get, critById,
     inRange, degreeOf, stepsOf, descOf, degreeName, isValidValue, emptyEval, isFilled, scores, missingFields,
     encodeCell, decodeCell,

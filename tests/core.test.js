@@ -446,6 +446,13 @@ test("questions d'entretien : degré proposé selon les réponses, réponses net
   assert.deepEqual(d({q2a:true, q2b:true, q3a:true, q3b:true, q4a:true, q4b:false}), {d:3, v:1.25});
   assert.deepEqual(d({q2a:true, q2b:true, q3a:true, q3b:true, q4a:true, q4b:true}), {d:4, v:2});
   ["1", "2", "3"].forEach(t => C.quizItems("regul").forEach(it => assert.ok(it.ok[t] || it.ok[""], `${it.id} thème ${t}`)));
+  assert.deepEqual(Object.keys(C.MOBILES), Object.keys(C.THEMES));
+  Object.entries(C.MOBILES).forEach(([t, m]) => {
+    assert.equal(m.nom, C.THEMES[t]);
+    ["but", "charge", "series", "reps", "recup", "rythme", "pourquoi", "ressentis", "indicateurs", "regul", "exemple"].forEach(k => assert.ok(m[k], `${m.nom}.${k}`));
+    assert.match(m.charge, /% de la RM$/);
+  });
+  assert.equal(C.quizItems("regul").find(it => it.id === "q2b").ok["3"][0], "Charge : 70 à 85\u00a0% de la RM");
   const ep = {candidates:[], mine:{a:{v:{}, d:{}, quiz:{regul:{q2a:true, bad:true, q3a:"oui"}, autre:{x:true}}}, b:{v:{}, d:{}, quiz:{regul:{}}}}};
   C.migrateEpreuve(ep, "Moi");
   assert.deepEqual(ep.mine.a.quiz, {regul:{q2a:true}});

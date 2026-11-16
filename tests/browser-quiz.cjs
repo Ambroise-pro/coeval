@@ -35,9 +35,9 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
       check(`[${label}] questions affichées sous la régulation, ouvertes`, await quiz.count() === 1 && await quiz.evaluate(d => d.open));
       const themeName = {1: 'Puissance', 2: 'Tonification', 3: 'Volume'}[cand.theme];
       check(`[${label}] questions adaptées au mobile (${themeName})`, (await quiz.locator('summary').textContent()).includes(themeName));
-      const hint = await quiz.locator('.ce-quiz-item[data-q=q3b] small').textContent();
-      const expected = {1: 'explosive', 2: '15 répétitions', 3: '8 à 12'}[cand.theme];
-      check(`[${label}] repère attendu propre au mobile`, hint.includes(expected), hint);
+      const hint = await quiz.locator('.ce-quiz-item[data-q=q2b] .ce-quiz-exp').textContent();
+      const expected = {1: ['50 à 70', '6 à 8'], 2: ['40 à 60', '15 à 25'], 3: ['70 à 85', '8 à 12']}[cand.theme];
+      check(`[${label}] paramètres attendus propres au mobile (% RM, répétitions)`, hint.includes(expected[0] + '\u00a0% de la RM') && hint.includes('Répétitions : ' + expected[1]) && await quiz.locator('.ce-quiz-item[data-q=q2b] li').count() === 5, hint);
       check(`[${label}] pas de degré tant qu'on n'a pas répondu`, (await quiz.locator('[data-act=quiz-place]').count()) === 0);
       const ans = async (q, yes) => {
         const btn = p.locator(`.ce-slide-crit[data-crit=regul] .ce-quiz-item[data-q=${q}] [data-ans="${yes ? 1 : 0}"]`);

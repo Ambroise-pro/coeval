@@ -623,7 +623,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .ce-quiz-item{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid #e2e8f0}
 .ce-quiz-q{min-width:0}
 .ce-quiz-q b{display:block;font-size:15px}
-.ce-quiz-q small{display:block;color:#475569;font-size:13px;margin-top:2px}
+.ce-quiz-exp{color:#334155;font-size:13px;margin-top:3px;background:#fff;border-left:3px solid var(--ce-primary);border-radius:4px;padding:4px 8px}
+.ce-quiz-exp>span{font-weight:700;color:var(--ce-primary)}
+.ce-quiz-exp ul{margin:2px 0 0;padding-left:18px}
+.ce-quiz-exp li{margin:1px 0}
 .ce-quiz-ans{display:flex;gap:6px;flex:none}
 .ce-quiz-ans button{min-width:72px;min-height:44px;border-radius:8px}
 .ce-quiz-ans button.on.yes{background:#15803d;border-color:#15803d;color:#fff}
