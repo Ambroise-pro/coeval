@@ -64,47 +64,43 @@ const SHOTS = process.env.SHOTS;
       check(`[${label}] premier passage = n° 1 de l'ordre du professeur`, name.startsWith('SIMON') && (await p.textContent('.ce-g-kicker')).includes('n° 1'), name);
       if (SHOTS && w === 810) await p.screenshot({path: `${SHOTS}/4-prochain.png`});
       await p.locator('[data-act=g-start]').click();
-      // Amplitude : observation (un toucher Oui sur D4 → D4 proposé).
-      check(`[${label}] étape 1/6 Amplitude, repères « Que regarder ? »`, (await p.textContent('.ce-g-title')).includes('Amplitude') && await p.locator('.ce-tips[open] li').count() === 3);
-      await p.locator('.ce-g-tool .ce-quiz-item').first().locator('[data-ans="1"]').click();
-      await p.locator('.ce-g-tool [data-act=quiz-place]').click();
-      check(`[${label}] observation → note placée`, (await ev(name)).ev.v.amp === 1 && (await ev(name)).ev.d.amp === 4);
-      await p.locator('.ce-g-bar [data-act=g-step]').last().click();
-      // Respiration : une touche sur les points → note, puis passage automatique.
-      check(`[${label}] étape 2/6 Respiration`, (await p.textContent('.ce-g-title')).includes('Respiration'));
-      await p.locator('.ce-g-deg.d3 [data-act=g-set]').last().click();
+      // Une seule fiche : les six critères, notés dans l'ordre voulu.
+      check(`[${label}] fiche unique : six critères et sommaire`, await p.locator('.ce-g-crit').count() === 6 && await p.locator('.ce-g-nav a').count() === 6);
+      check(`[${label}] « Que regarder ? » sur chaque critère`, await p.locator('.ce-g-crit .ce-tips').count() === 6);
+      check(`[${label}] valider impossible tant que tout n'est pas noté`, await p.locator('[data-act=g-validate]').isDisabled());
+      if (SHOTS && w === 810) await p.screenshot({path: `${SHOTS}/5-fiche.png`});
+      const placeQuiz = async (crit, answers) => {
+        await p.locator(`#g-${crit} [data-act=quiz-open]`).click();
+        for (let i = 0; i < answers.length; i++) await p.locator('#ceDialog .ce-quiz-item').nth(i).locator(`[data-ans="${answers[i]}"]`).click();
+        await p.locator('#ceDialog [data-act=quiz-place]').click();
+      };
+      // On commence par la régulation (entretien), puis l'amplitude (observation)…
+      await placeQuiz('regul', [1, 1]);
+      let e = (await ev(name)).ev;
+      check(`[${label}] entretien d'abord : régulation placée`, e.d.regul === 4 && e.v.regul === 2 && !(await p.evaluate(() => document.getElementById('ceDialog').open)));
+      await placeQuiz('amp', [1]);
+      check(`[${label}] observation → amplitude placée`, (await ev(name)).ev.v.amp === 1 && (await ev(name)).ev.d.amp === 4);
+      // … une touche pour la respiration …
+      await p.locator('#g-resp .ce-g-deg.d3 [data-act=g-set]').last().click();
       check(`[${label}] une touche = degré + points`, (await ev(name)).ev.d.resp === 3 && (await ev(name)).ev.v.resp === .75);
-      await p.waitForTimeout(800);
-      check(`[${label}] passage automatique au critère suivant`, (await p.textContent('.ce-g-title')).includes('Posture'));
-      // Posture : compteur de répétitions.
-      if (SHOTS && w === 810) await p.screenshot({path: `${SHOTS}/5-compteur-vide.png`});
-      for (const m of 'vvvvvcvvvv') await p.locator(`.ce-reps-btns [data-mark=${m}]`).click();
-      await p.locator('[data-act=rep-series]').click();
-      for (const m of 'vvvcvvvvx') await p.locator(`.ce-reps-btns [data-mark=${m}]`).click();
-      const stats = await p.textContent('.ce-reps-stats');
+      check(`[${label}] pas de changement d'écran`, await p.locator('.ce-g-crit').count() === 6 && (await p.textContent('.ce-g-nav')).includes('0,75'));
+      // … le compteur de répétitions propose Posture et Choix des paramètres …
+      await p.locator('#g-post [data-act=g-reps]').click();
+      for (const m of 'vvvvvcvvvv') await p.locator(`#ceDialog .ce-reps-btns [data-mark=${m}]`).click();
+      await p.locator('#ceDialog [data-act=rep-series]').click();
+      for (const m of 'vvvcvvvvx') await p.locator(`#ceDialog .ce-reps-btns [data-mark=${m}]`).click();
+      const stats = await p.textContent('#ceDialog .ce-reps-stats');
       check(`[${label}] compteur : réalisées et compensations`, /Réalisées\s*18\//.test(stats) && stats.includes('compensations 2'), stats.replace(/\s+/g, ' '));
       if (SHOTS && w === 810) await p.screenshot({path: `${SHOTS}/6-compteur.png`});
-      await p.locator('.ce-reps-prop li.focus [data-act=rep-place]').click();
-      let e = (await ev(name)).ev;
-      check(`[${label}] compteur → Posture proposée et placée (D3)`, e.d.post === 3 && e.notes?.post?.startsWith('Compteur'), `D${e.d.post} ${e.v.post}`);
-      await p.locator('.ce-g-bar [data-act=g-step]').last().click();
-      // Choix des paramètres : le même comptage propose la note.
-      check(`[${label}] étape 4/6 Choix des paramètres : compteur repris`, (await p.textContent('.ce-g-title')).includes('Choix des paramètres') && /Réalisées\s*18\//.test(await p.textContent('.ce-reps-stats')));
-      await p.locator('.ce-reps-prop li.focus [data-act=rep-place]').click();
+      await p.locator('#ceDialog [data-act=rep-place][data-crit=post]').click();
+      await p.locator('#ceDialog [data-act=rep-place][data-crit=param]').click();
       e = (await ev(name)).ev;
-      check(`[${label}] compteur → Choix des paramètres placé`, e.v.param != null && e.notes?.param?.includes('prévue'), `D${e.d.param} ${e.v.param}`);
-      await p.locator('.ce-g-bar [data-act=g-step]').last().click();
-      // Ressentis et régulation : entretien descendant.
-      for (const crit of ['ress', 'regul']) {
-        check(`[${label}] ${crit} : questions d'entretien intégrées`, await p.locator('.ce-g-tool .ce-quiz-item').count() === 2);
-        await p.locator('.ce-g-tool .ce-quiz-item').nth(0).locator('[data-ans="1"]').click();
-        await p.locator('.ce-g-tool .ce-quiz-item').nth(1).locator('[data-ans="1"]').click();
-        await p.locator('.ce-g-tool [data-act=quiz-place]').click();
-        await p.locator('.ce-g-bar [data-act=g-step]').last().click();
-      }
-      // 5 · Récapitulatif et validation.
-      check(`[${label}] récapitulatif complet`, (await p.textContent('.ce-g-recap')).includes('Récapitulatif') && await p.locator('.ce-g-recap li.missing').count() === 0);
-      if (SHOTS && w === 810) await p.screenshot({path: `${SHOTS}/7-recap.png`});
+      check(`[${label}] compteur → Posture et Choix des paramètres placés`, e.d.post === 3 && e.v.param != null && e.notes?.post?.startsWith('Compteur') && e.notes?.param?.includes('prévue'), `post D${e.d.post} ${e.v.post} · param D${e.d.param} ${e.v.param}`);
+      await p.locator('#ceDialog [data-act=quiz-close]').click();
+      // … et les ressentis pour finir.
+      await placeQuiz('ress', [1, 1]);
+      check(`[${label}] six critères notés : valider possible`, !(await p.locator('[data-act=g-validate]').isDisabled()) && (await p.textContent('.ce-g-bar')).includes('6/6'));
+      if (SHOTS && w === 810) await p.screenshot({path: `${SHOTS}/7-fiche-complete.png`});
       await p.locator('[data-act=g-validate]').click();
       check(`[${label}] fiche validée (verrouillée)`, (await ev(name)).ev.done === true);
       const next = (await p.textContent('.ce-g-name')).replace(/\s+TG\d.*$/, '').trim();
@@ -116,7 +112,7 @@ const SHOTS = process.env.SHOTS;
       // Choisir un élève : la fiche terminée s'ouvre au récapitulatif.
       await p.locator('.ce-g-row [data-act=g-choose]').click();
       await p.locator(`#ceDialog [data-act=g-pick]:has-text("${name}")`).click();
-      check(`[${label}] fiche terminée : récapitulatif en lecture seule`, await p.locator('.ce-g-recap').count() === 1 && await p.locator('[data-act=reopen]').count() === 1);
+      check(`[${label}] fiche terminée : en lecture seule, « Rouvrir »`, await p.locator('.ce-g-crit').count() === 6 && await p.locator('[data-act=reopen]').count() === 1 && await p.locator('.ce-g-crit [data-act=g-set]:disabled').count() > 20);
       // 6 · Fin de séance : toutes les fiches terminées → envoyer.
       await p.evaluate(() => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); e.candidates.forEach(c => { const m = e.mine[c.id] || (e.mine[c.id] = {v: {}, d: {}}); m.done = true; }); localStorage.setItem('df-coeval-v1', JSON.stringify(db)); });
       await p.reload();

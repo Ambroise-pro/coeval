@@ -38,7 +38,7 @@
   let refilter = true;
   // Ergonomie tablette : tiroir de la liste, critères notés repliés, justification ouverte.
   let listOpen = false;
-  let gstep = null;            // mode guidé : null = prochain passage, 0..5 = critère, 6 = récapitulatif
+  let gstep = null;            // mode guidé : null = prochain passage, "sheet" = fiche de l'élève (6 critères)
   let pendingKit = null;       // kit co-évaluateur reçu par le lien, en attente du nom
   const fold = {cand:null, open:new Set(), notes:new Set()};
   const openCrits = {};
@@ -464,55 +464,49 @@
       </section>`;
       return;
     }
-    const ev = evalOf(ep, cand.id);
-    const locked = !!ev.done || !W.eligible(cand);
-    const ids = C.AFL1_IDS;
-    const dots = `<div class="ce-g-dots">${ids.map((id, i) => `<button type="button" class="${ev.v[id] != null ? "filled" : ""}${i === gstep ? " here" : ""}" data-act="g-step" data-step="${i}" aria-label="${esc(C.critById(id).label)}">${i + 1}</button>`).join("")}<button type="button" class="${gstep === 6 ? "here" : ""}" data-act="g-step" data-step="6" aria-label="Récapitulatif">✓</button></div>`;
-    const head = `<div class="ce-g-head"><button type="button" class="ce-g-back" data-act="g-step" data-step="${gstep === 0 ? "start" : gstep - 1}" aria-label="Retour">←</button>
-      <div class="ce-g-who"><b>${esc(cand.name)}</b><small>${esc(THEMES[ev.theme] || "Mobile ?")}${locked ? " · 🔒 terminée" : ""}</small></div>${dots}</div>`;
-    if (gstep === 6) { main.innerHTML = top + head + guidedRecapHTML(ep, cand, ev, locked); return; }
-    const crit = C.critById(ids[gstep]);
-    const value = ev.v[crit.id], deg = C.degreeOf(crit, value, ev.d[crit.id]);
-    const desc = C.descOf(crit, ev.role);
-    if (C.QUIZ[crit.id] && !locked) ensureQuizPick(ep, ev, crit.id);
-    const tool = crit.id === "post" || crit.id === "param" ? repsHTML(ep, ev, locked, crit.id)
-      : C.QUIZ[crit.id] ? `<div class="ce-g-tool">${quizDialogHTML(crit, ev, cand, locked, true)}</div>` : "";
-    main.innerHTML = top + head + `<section class="ce-card ce-g-step" data-crit="${crit.id}">
-      <div class="ce-g-title"><span>${gstep + 1}/6 · ${esc(crit.group)}</span><h2>${esc(crit.label)} <small>/${crit.max}</small></h2>
-        <strong class="ce-g-val${value != null ? " set" : ""}">${value != null ? `${esc(degreeLabel(crit, deg))} · ${fmt(value)}` : "à noter"}</strong></div>
-      ${tipsHTML(crit.id, true)}
-      ${tool}
-      <h3 class="ce-g-sub">${tool ? "Ou choisis directement" : "Touche le degré et les points"}</h3>
-      <div class="ce-g-degs">${crit.deg.map((range, i) => {
-        const d = i + 1;
-        return `<div class="ce-g-deg d${d}${deg === d ? " on" : ""}"><b>${esc(crit.names ? crit.names[i] : "Degré " + d)}</b>
-          ${crit.key ? `<strong>${esc(crit.key[i])}</strong>` : ""}<span>${esc(desc[i])}</span>
-          <div class="ce-g-pts">${C.stepsOf(range).map(v => `<button type="button" class="${deg === d && value === v ? "on" : ""}" data-act="g-set" data-crit="${crit.id}" data-d="${d}" data-v="${v}"${locked ? " disabled" : ""}>${fmt(v)}</button>`).join("")}</div></div>`;
-      }).join("")}</div>
-      ${justifHTML(crit, ev, locked).replace('<details class="ce-just"', '<details class="ce-just ce-g-just"')}
-    </section>
-    <div class="ce-total ce-actionbar ce-g-bar">
-      <button type="button" class="ce-next" data-act="g-step" data-step="${gstep === 0 ? "start" : gstep - 1}">← Précédent</button>
-      <button type="button" class="ce-primary" data-act="g-step" data-step="${gstep + 1}">${gstep === 5 ? "Récapitulatif →" : "Suivant →"}</button>
-    </div>`;
+    main.innerHTML = top + guidedSheetHTML(ep, cand);
   }
 
-  function guidedRecapHTML(ep, cand, ev, locked) {
+  /* Fiche guidée : les six critères AFL1 sur un seul écran, à noter dans l'ordre voulu.
+     Une touche = degré + points ; compteur, observation et entretien proposent la note. */
+  function guidedSheetHTML(ep, cand) {
+    const ev = evalOf(ep, cand.id);
+    const locked = !!ev.done || !W.eligible(cand);
     const s = C.scores(ev);
-    const missing = C.AFL1_IDS.filter(id => ev.v[id] == null);
-    return `<section class="ce-card ce-g-recap"><h2>Récapitulatif</h2>
-      <ul>${C.AFL1_IDS.map((id, i) => { const cr = C.critById(id), v = ev.v[id], d = C.degreeOf(cr, v, ev.d[id]);
-        return `<li class="${v == null ? "missing" : ""}"><button type="button" data-act="g-step" data-step="${i}"><span>${esc(cr.label)}${ev.notes?.[id] ? " ✎" : ""}</span>
-          <b class="ce-crit-sum-val d${d}">${v == null ? "à noter" : `${esc(degreeLabel(cr, d))} · ${fmt(v)}<small>/${cr.max}</small>`}</b></button></li>`; }).join("")}</ul>
-      <p class="ce-g-total">AFL1 : <b>${fmt(s.afl1 ?? s.afl1p)}</b> / 12${missing.length ? ` · ${missing.length} critère(s) à noter` : ""}</p>
-      <details class="ce-more"${ev.comment ? " open" : ""}><summary>💬 Remarque (facultatif)</summary>
-        <textarea data-field="comment" rows="2" aria-label="Remarque"${locked ? " readonly" : ""}>${esc(ev.comment)}</textarea></details>
-    </section>
-    <div class="ce-total ce-actionbar ce-g-bar">
-      <button type="button" class="ce-next" data-act="g-step" data-step="5">← Précédent</button>
-      ${locked ? `<button type="button" class="ce-next" data-act="reopen">Rouvrir la fiche</button><button type="button" class="ce-primary" data-act="g-step" data-step="start">Élève suivant →</button>`
-        : `<button type="button" class="ce-primary" data-act="g-validate"${missing.length ? " disabled" : ""}>✔ Valider · élève suivant</button>`}
-    </div>`;
+    const filled = C.AFL1_IDS.filter(id => ev.v[id] != null).length;
+    const card = id => {
+      const crit = C.critById(id), value = ev.v[id], deg = C.degreeOf(crit, value, ev.d[id]), desc = C.descOf(crit, ev.role);
+      const kind = C.QUIZ_KIND[id];
+      const tool = kind ? `<button type="button" class="ce-g-toolbtn" data-act="quiz-open" data-crit="${id}">${kind === "observe" ? "👁 Observation" : "❓ Questions d'entretien"}</button>`
+        : `<button type="button" class="ce-g-toolbtn" data-act="g-reps" data-crit="${id}">🔢 Compteur</button>`;
+      return `<section class="ce-card ce-g-crit${value != null ? " filled" : ""}" data-crit="${id}" id="g-${id}">
+        <div class="ce-g-crit-head"><h3>${esc(crit.label)} <small>/${crit.max}</small></h3>
+          <strong class="ce-g-val${value != null ? " set" : ""}">${value != null ? `${esc(degreeLabel(crit, deg))} · ${fmt(value)}` : "à noter"}</strong></div>
+        <div class="ce-g-crit-tools">${tool}${tipsHTML(id, false)}</div>
+        <div class="ce-g-degs">${crit.deg.map((range, i) => {
+          const d = i + 1;
+          return `<div class="ce-g-deg d${d}${deg === d ? " on" : ""}"><b>${esc(crit.names ? crit.names[i] : "Degré " + d)}</b>
+            ${crit.key ? `<strong>${esc(crit.key[i])}</strong>` : ""}<span>${esc(desc[i])}</span>
+            <div class="ce-g-pts">${C.stepsOf(range).map(v => `<button type="button" class="${deg === d && value === v ? "on" : ""}" data-act="g-set" data-crit="${id}" data-d="${d}" data-v="${v}"${locked ? " disabled" : ""}>${fmt(v)}</button>`).join("")}</div></div>`;
+        }).join("")}</div>
+        ${justifHTML(crit, ev, locked).replace('<details class="ce-just"', '<details class="ce-just ce-g-just"')}
+      </section>`;
+    };
+    // Sommaire : un toucher amène au critère ; on voit d'un coup d'œil ce qui reste à noter.
+    const nav = `<nav class="ce-g-nav" aria-label="Critères">${C.AFL1_IDS.map(id => { const cr = C.critById(id), v = ev.v[id];
+      return `<a href="#g-${id}" class="${v != null ? "filled" : ""}">${esc(cr.label.replace("Identification des ressentis", "Ressentis").replace("Régulation des paramètres", "Régulation").replace("Choix des paramètres", "Paramètres"))}<b>${v != null ? fmt(v) : "—"}</b></a>`; }).join("")}</nav>`;
+    return `<div class="ce-g-head"><button type="button" class="ce-g-back" data-act="g-step" data-step="start" aria-label="Retour">←</button>
+        <div class="ce-g-who"><b>${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</b><small>${esc(THEMES[ev.theme] || "Mobile ?")}${ev.role ? " · " + esc(ROLES[ev.role]) : ""}${locked ? " · 🔒 terminée" : ""}</small></div></div>
+      ${nav}
+      <p class="ce-hint ce-g-intro">Note les critères dans l'ordre que tu veux : une touche sur les points suffit.</p>
+      ${C.AFL1_IDS.map(card).join("")}
+      <section class="ce-card ce-g-end"><details class="ce-more"${ev.comment ? " open" : ""}><summary>💬 Remarque (facultatif)</summary>
+        <textarea data-field="comment" rows="2" aria-label="Remarque"${locked ? " readonly" : ""}>${esc(ev.comment)}</textarea></details></section>
+      <div class="ce-total ce-actionbar ce-g-bar">
+        <div class="ce-total-scores"><strong>AFL1 ${fmt(s.afl1 ?? s.afl1p)} / 12</strong><small>${filled}/6 critères notés</small></div>
+        <div class="ce-total-actions">${locked ? `<button type="button" class="ce-next" data-act="reopen">Rouvrir</button><button type="button" class="ce-primary" data-act="g-step" data-step="start">Élève suivant →</button>`
+          : `<button type="button" class="ce-primary" data-act="g-validate"${filled < 6 ? " disabled" : ""}>✔ Valider · élève suivant</button>`}</div>
+      </div>`;
   }
 
   /* Fin de séance : un seul geste pour envoyer au professeur. */
@@ -548,8 +542,8 @@
   /* Démonstration de premier lancement : trois écrans, puis c'est parti. */
   const TOUR = [
     ["👋 Bienvenue", "Tu vas évaluer l'AFL1 des élèves, un par un, dans l'ordre de passage. Tout est enregistré sur cette tablette, même sans connexion."],
-    ["👆 Un critère par écran", "Pour chaque critère, touche le degré et les points en un seul geste. Le compteur de répétitions et les questions d'entretien te proposent la note : tu confirmes."],
-    ["✔ Valider puis envoyer", "Au récapitulatif, valide la fiche : l'élève suivant s'affiche. À la fin, un bouton envoie tes évaluations au professeur."]
+    ["👆 Tous les critères sur un écran", "Note les six critères dans l'ordre que tu veux : une touche sur les points suffit. Le compteur de répétitions, l'observation et les questions d'entretien te proposent la note : tu confirmes."],
+    ["✔ Valider puis envoyer", "Quand les six critères sont notés, valide la fiche : l'élève suivant s'affiche. À la fin, un bouton envoie tes évaluations au professeur."]
   ];
   function openTour(i = 0) {
     const [t, body] = TOUR[i];
@@ -878,7 +872,7 @@
 
   /* Retour discret après un enregistrement : la note clignote, petite vibration si possible. */
   function flashSaved(critId) {
-    const box = document.querySelector(`.ce-slide-crit[data-crit="${critId}"], .ce-g-step[data-crit="${critId}"]`);
+    const box = document.querySelector(`.ce-slide-crit[data-crit="${critId}"], .ce-g-crit[data-crit="${critId}"]`);
     if (box) { box.classList.remove("ce-saved"); void box.offsetWidth; box.classList.add("ce-saved"); setTimeout(() => box.classList.remove("ce-saved"), 900); }
     try { navigator.vibrate?.(12); } catch (e) {}
   }
@@ -2212,16 +2206,15 @@
       }
       case "pick": currentId = el.dataset.id; editChoices = null; listOpen = false; render(); scrollToSheet(); break;
       // --- Mode guidé
-      case "g-start": { const e = evalOf(ep, currentId); const i = C.AFL1_IDS.findIndex(id => e.v[id] == null); gstep = i < 0 ? 6 : i; render(); window.scrollTo({top:0}); break; }
-      case "g-step": gstep = el.dataset.step === "start" ? null : Math.max(0, Math.min(6, Number(el.dataset.step))); render(); window.scrollTo({top:0}); break;
+      case "g-start": gstep = "sheet"; render(); window.scrollTo({top:0}); break;
+      case "g-step": gstep = el.dataset.step === "start" ? null : "sheet"; render(); window.scrollTo({top:0}); break;
+      case "g-reps": openReps(ep, el.dataset.crit); break;
       case "g-set": {
-        const e = evalOf(ep, currentId), crit = el.dataset.crit, i = C.AFL1_IDS.indexOf(crit);
+        const e = evalOf(ep, currentId), crit = el.dataset.crit;
         if (e.done || !W.eligible(cand)) break;
-        const first = e.v[crit] == null;
         setValue(ep, crit, Number(el.dataset.d), Number(el.dataset.v));
-        render(); flashSaved(crit);
-        // Première note du critère : on passe seul au suivant ; une correction reste sur place.
-        if (first && i >= 0) setTimeout(() => { if (tab === "eval" && gstep === i && currentId === cand.id) { gstep = i + 1; render(); window.scrollTo({top:0}); } }, 550);
+        { const y = window.scrollY; render(); window.scrollTo({top:y}); }
+        flashSaved(crit);
         break;
       }
       case "g-validate": {
@@ -2234,7 +2227,7 @@
         break;
       }
       case "g-choose": openGuidedChooser(ep); break;
-      case "g-pick": { currentId = el.dataset.id; closeDialog(); const e = C.get(ep.mine, currentId); gstep = e?.done ? 6 : null; render(); window.scrollTo({top:0}); break; }
+      case "g-pick": { currentId = el.dataset.id; closeDialog(); const e = C.get(ep.mine, currentId); gstep = e?.done ? "sheet" : null; render(); window.scrollTo({top:0}); break; }
       case "g-absent":
         if (!cand || !confirm(`${cand.name} est absent ? L'élève sort de la file (ses notes éventuelles sont conservées).`)) break;
         cand.situation = "absent"; cand.organizationAt = Date.now(); save(); gstep = null; currentId = null; render(); toast(`${cand.name} : absent.`); break;
