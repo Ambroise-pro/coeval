@@ -957,3 +957,35 @@ dialog.ce-quiz-dlg .ce-dialog{padding:0;max-height:calc(100dvh - 24px);overflow:
   .ce-g-main .ce-g-nav{top:52px}
 }
 @media (max-width:699px){ .ce-compact .ce-brand{min-width:0;overflow:hidden} .ce-compact .ce-header h1{overflow:hidden;text-overflow:ellipsis} }
+
+/* Assistant de préparation (professeur) */
+.ce-p-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:0 0 10px}
+.ce-p-steps button{display:flex;align-items:center;gap:8px;min-height:56px;padding:6px 10px;border-radius:14px;text-align:left}
+.ce-p-steps i{flex:none;width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-weight:800;border:2px solid #cbd5e1;color:var(--ce-muted)}
+.ce-p-steps span{display:flex;flex-direction:column;min-width:0}
+.ce-p-steps b{font-size:14px;line-height:1.15}
+.ce-p-steps small{font-size:12px;color:var(--ce-muted)}
+.ce-p-steps button.ok i{background:#16a34a;border-color:#16a34a;color:#fff}
+.ce-p-steps button.here{background:var(--ce-primary);border-color:var(--ce-primary);color:#fff}
+.ce-p-steps button.here i{border-color:#fff;color:#fff;background:transparent}
+.ce-p-steps button.here small{color:#e0e7ff}
+.ce-p-card h2 small{font-size:15px;color:var(--ce-muted);font-weight:600}
+.ce-p-card textarea{width:100%}
+.ce-p-import{display:inline-block;margin:6px 0 10px}
+.ce-p-help{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;background:var(--ce-primary-soft)}
+.ce-p-help p{margin:0;flex:1 1 300px}
+.ce-p-order{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin:10px 0}
+.ce-p-order button{display:flex;align-items:center;gap:8px;min-height:48px;text-align:left}
+.ce-p-order i{flex:none;width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-weight:800;border:2px dashed #cbd5e1}
+.ce-p-order button.on{background:var(--ce-primary-soft);border-color:#c7d2fe}
+.ce-p-order button.on i{background:var(--ce-primary);border:0;color:#fff}
+.ce-p-howto{margin:4px 0 8px;padding-left:22px;font-size:15px;line-height:1.5}
+.ce-p-missing{margin:8px 0 12px}
+.ce-p-fix{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ce-p-fix button{min-height:40px}
+.ce-p-after{justify-content:flex-end}
+@media (max-width:699px){
+  .ce-p-steps{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ce-p-order{grid-template-columns:1fr 1fr}
+}
+.ce-p-card>label:not(.ce-button){display:block;margin-top:4px}

@@ -27,7 +27,7 @@ const SHOTS = process.env.SHOTS;
     localStorage.setItem('df-coeval-v1', JSON.stringify(db)); });
   await prof.reload();
   await prof.locator('[data-tab=prep]').click();
-  await prof.locator('[data-act=prep-share]').first().click();
+  await prof.locator('.ce-p-steps [data-step="4"]').click();
   await prof.waitForFunction(() => !!document.getElementById('ceKitQr')?.dataset.link);
   const link = await prof.$eval('#ceKitQr', el => el.dataset.link);
   check('kit : un seul QR et un lien', (await prof.locator('#ceKitQr svg').count()) === 1 && link.includes('#kit=z'), `${link.length} caractères`);

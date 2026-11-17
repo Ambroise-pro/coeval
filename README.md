@@ -68,7 +68,12 @@ Site statique : aucun build, à publier tel quel (Vercel, GitHub Pages…). La c
 Le co-évaluateur découvre souvent l’application le jour de l’épreuve. Tout est
 fait pour qu’il n’ait rien à apprendre.
 
-- **Kit co-évaluateur (un seul QR)** : dans « Préparer › Transmettre », le
+- **Assistant de préparation du professeur** (onglet « 1 · Préparer ») : quatre
+  étapes, cochées au fur et à mesure — 1 Élèves (export Pronote ou liste collée),
+  2 Préparation de chaque élève (mobile, répartition, rôle, AFL2, AFL3),
+  3 Ordre de passage (facultatif : toucher les élèves dans l’ordre), 4 Kit
+  co-évaluateur (le QR à montrer, avec les élèves encore incomplets signalés).
+- **Kit co-évaluateur (un seul QR)** : à l’étape 4 de l’assistant, le
   professeur affiche un QR (ou copie un lien). Le co-évaluateur le scanne avec
   l’appareil photo : l’application s’ouvre avec la classe, les répartitions, les
   thèmes, les rôles, l’AFL2/AFL3 et l’ordre de passage. Il tape seulement son nom.
@@ -245,6 +250,7 @@ NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-fullscreen-filter-
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-quiz.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-ergonomie.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-guide.cjs
+NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-prep-guide.cjs
 ```
 
 Chromium est recherché dans `/usr/bin/chromium` ; définir `CHROMIUM_PATH` si besoin.

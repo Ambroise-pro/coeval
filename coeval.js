@@ -39,7 +39,8 @@
   // Ergonomie tablette : tiroir de la liste, critères notés repliés, justification ouverte.
   let listOpen = false;
   let gstep = null;            // mode guidé : null = prochain passage, "sheet" = fiche de l'élève (6 critères)
-  let pendingKit = null;       // kit co-évaluateur reçu par le lien, en attente du nom
+  let pendingKit = null;
+  let pstep = null;            // assistant de préparation : null = étape suggérée, 1..4       // kit co-évaluateur reçu par le lien, en attente du nom
   const fold = {cand:null, open:new Set(), notes:new Set()};
   const openCrits = {};
   let stopCamera = null;
@@ -225,7 +226,7 @@
     if (!db.me) { main.innerHTML = welcomeHTML(); return; }
     if (!ep) { if (tab === "share") renderShare(main, null); else main.innerHTML = noEpreuveHTML(); return; }
     if (tab === "home") renderDashboard(main, ep);
-    else if (tab === "prep") renderEval(main, ep, "prep");
+    else if (tab === "prep") { if (roleOf(ep) === "prof") renderPrepGuide(main, ep); else renderEval(main, ep, "prep"); }
     else if (tab === "eval") { if (isGuided(ep)) renderGuided(main, ep); else renderEval(main, ep, "afl1"); }
     else if (tab === "share") renderShare(main, ep);
     else if (tab === "send") renderSend(main, ep);
@@ -312,7 +313,7 @@
     const legend = Object.keys(PROGRESS).filter(k => counts[k]).map(k => `<button type="button" class="ce-pg-chip ${k}${evalFilter === k ? " on" : ""}" data-act="eval-filter" data-filter="${k}" aria-pressed="${evalFilter === k}">
       ${ring(k, 1, 2)} ${counts[k]} <small>${labels[k]}</small></button>`).join("");
     const ready = C.prepReady(ep);
-    const listTop = prepScope ? `<button type="button" class="ce-primary ce-wide" data-act="prep-share">📤 Transmettre au co-évaluateur <small>(${ready}/${ep.candidates.length} prêtes)</small></button>` : "";
+    const listTop = prepScope ? `<button type="button" class="ce-primary ce-wide" data-act="p-step" data-step="4">📲 Kit co-évaluateur <small>(${ready}/${ep.candidates.length} prêtes)</small></button>` : "";
 
     // Choix déjà fixés (fiche terminée ou repris de la préparation) : une seule ligne.
     const allSet = !!(ev.theme && ev.split && ev.role);
@@ -653,6 +654,73 @@
     toast(`✅ ${preview.ep.candidates.length} élèves reçus de ${preview.result.by}.`);
     if (!ui.tourDone) openTour();
     return true;
+  }
+
+  /* =========================================================
+     ASSISTANT DE PRÉPARATION (professeur) : quatre étapes jusqu'au QR du co-évaluateur.
+     1 Élèves → 2 Préparation de chaque élève → 3 Ordre de passage (facultatif) → 4 Kit.
+     ========================================================= */
+  function renderPrepGuide(main, ep) {
+    const total = ep.candidates.length, ready = C.prepReady(ep);
+    const elig = W.candidates(ep).filter(W.eligible), ordered = elig.filter(c => c.order).length;
+    const auto = !total ? 1 : ready < total ? 2 : 4;
+    const step = pstep ?? auto;
+    const steps = [
+      [1, "Élèves", total ? `${total} élève(s)` : "à ajouter", total > 0],
+      [2, "Préparation", total ? `${ready}/${total} prête(s)` : "—", total > 0 && ready === total],
+      [3, "Ordre de passage", ordered ? `${ordered} placé(s)` : "facultatif", ordered > 0],
+      [4, "Kit co-évaluateur", "QR à montrer", !!ep.kitShownAt]
+    ];
+    const nav = `<nav class="ce-p-steps" aria-label="Étapes de la préparation">${steps.map(([n, t, sub, ok]) =>
+      `<button type="button" class="${n === step ? "here" : ""}${ok ? " ok" : ""}" data-act="p-step" data-step="${n}"${n > 1 && !total ? " disabled" : ""} aria-current="${n === step ? "step" : "false"}">
+        <i>${ok && n !== step ? "✓" : n}</i><span><b>${t}</b><small>${esc(sub)}</small></span></button>`).join("")}</nav>`;
+    const nextBtn = (n, label, dis) => `<button type="button" class="ce-primary ce-g-big" data-act="p-step" data-step="${n}"${dis ? " disabled" : ""}>${label}</button>`;
+    let body = "";
+    if (step === 1) {
+      body = `<section class="ce-card ce-p-card"><h2>1 · Les élèves de la classe</h2>
+        <p>Importe l'export Pronote (fichier CSV, colonne A : NOM Prénom) ou colle les noms, un élève par ligne.</p>
+        <label class="ce-button ce-primary ce-p-import">📂 Importer le fichier CSV<input id="ceCsv" type="file" accept=".csv,text/csv,text/plain" hidden></label>
+        <label>…ou colle la liste<textarea id="ceNames" rows="6" placeholder="DUPONT Léa&#10;MARTIN Hugo"></textarea></label>
+        <div class="ce-actions"><button type="button" data-act="add-names">Ajouter ces élèves</button></div>
+        ${total ? `<p class="ce-ok-text">✓ ${total} élève(s) : ${ep.candidates.slice(0, 6).map(c => esc(c.name)).join(", ")}${total > 6 ? "…" : ""}</p>
+          <div class="ce-actions"><button type="button" class="ce-link" data-act="candidates">Modifier la liste (corrections, absents, groupes)</button></div>` : ""}
+        ${nextBtn(2, "Étape suivante : préparer chaque élève →", !total)}</section>`;
+    } else if (step === 2) {
+      const box = document.createElement("div");
+      renderEval(box, ep, "prep");
+      body = `<div class="ce-card ce-p-help"><p><b>2 · Pour chaque élève</b> : choisis le mobile, la répartition AFL2/AFL3 et le rôle, puis note l'AFL2 et l'AFL3. <b>${ready}/${total}</b> fiche(s) prête(s).</p>
+        <button type="button" class="ce-primary" data-act="p-step" data-step="3">Étape suivante →</button></div>${box.innerHTML}`;
+    } else if (step === 3) {
+      body = `<section class="ce-card ce-p-card"><h2>3 · Ordre de passage <small>(facultatif)</small></h2>
+        <p>Touche les élèves dans l'ordre où ils passeront : le co-évaluateur les verra dans cet ordre. Touche à nouveau un élève pour le retirer.</p>
+        <div class="ce-p-order">${W.candidates(ep).filter(W.eligible).map(c => `<button type="button" class="${c.order ? "on" : ""}" data-act="p-order" data-id="${esc(c.id)}"><i>${c.order || ""}</i>${esc(c.name)}</button>`).join("")}</div>
+        <div class="ce-actions"><button type="button" data-act="p-order-alpha">Ordre alphabétique</button><button type="button" data-act="p-order-clear"${ordered ? "" : " disabled"}>Effacer l'ordre</button></div>
+        ${nextBtn(4, ordered ? "Étape suivante : le kit du co-évaluateur →" : "Passer : le kit du co-évaluateur →")}</section>`;
+    } else {
+      const missing = ep.candidates.filter(c => { const e = C.get(ep.mine, c.id); return !(e && e.split && e.role && C.PREP_CRITS.every(id => e.v?.[id] != null)); });
+      body = `<section class="ce-card ce-p-card"><h2>4 · Le kit du co-évaluateur</h2>
+        ${missing.length ? `<div class="ce-warn ce-p-missing"><b>${missing.length} élève(s) pas encore préparé(s)</b> : ils partiront sans préparation (le co-évaluateur pourra quand même noter l'AFL1).
+          <div class="ce-p-fix">${missing.slice(0, 12).map(c => `<button type="button" data-act="p-fix" data-id="${esc(c.id)}">${esc(c.name)}</button>`).join("")}</div></div>`
+          : `<p class="ce-ok-text">✓ Les ${total} élèves sont préparés.</p>`}
+        <div class="ce-kit"><h3>📲 Montre ce QR au co-évaluateur</h3>
+          <ol class="ce-p-howto"><li>Il le scanne avec l'<b>appareil photo</b> de sa tablette.</li><li>Il tape son nom.</li><li>Il évalue : la classe, les mobiles, les rôles et l'ordre de passage sont déjà là.</li></ol>
+          <div id="ceKitQr" class="ce-qr"><p class="ce-hint">Préparation du QR…</p></div>
+          <div class="ce-actions"><button type="button" data-act="kit-copy">🔗 Copier le lien (message, mail)</button></div>
+          <p class="ce-hint">Sa tablette doit être connectée à Internet la première fois ; ensuite tout fonctionne hors connexion. Jamais de note AFL1 dans le kit.</p></div>
+        <details class="ce-more"><summary>Autre méthode : QR de préparation à scanner dans l'application</summary><div class="ce-actions"><button type="button" data-act="prep-share" data-kit="0">Afficher les QR de préparation</button></div></details>
+        <div class="ce-actions ce-p-after"><button type="button" class="ce-primary" data-act="go-tab" data-tab="eval">C'est fait : je passe à l'évaluation →</button></div></section>`;
+    }
+    main.innerHTML = nav + body;
+    if (step === 4) {
+      fillKitQr(ep);
+      if (!ep.kitShownAt) { ep.kitShownAt = Date.now(); save(); }
+    }
+  }
+
+  /* QR du kit, généré dans la page (compression asynchrone). */
+  function fillKitQr(ep) {
+    encodeKit(C.kitData(ep, db.me)).then(code => { const box = $("ceKitQr"); if (box) { box.innerHTML = qrImage(kitLink(code)); box.dataset.link = kitLink(code); } })
+      .catch(() => { const box = $("ceKitQr"); if (box) box.innerHTML = '<p class="ce-warn">Kit indisponible sur ce navigateur : utilise l’autre méthode.</p>'; });
   }
 
   /* Curseur par critère : ses crans sont les points de chaque degré, degré après degré.
@@ -1088,27 +1156,28 @@
   }
 
   /* Professeur : transmettre la préparation (fenêtre, depuis « Préparer »). */
-  function openPrepShare(ep) {
+  let prepShareKit = true;
+  function openPrepShare(ep, withKit = true) {
+    prepShareKit = withKit;
     const parts = ep.candidates.length ? C.prepParts(ep, db.me) : [];
     prepIndex = Math.min(prepIndex, Math.max(0, parts.length - 1));
     const ready = C.prepReady(ep);
     openDialog(`<div class="ce-prepshare"><h2>📤 Transmettre au co-évaluateur</h2>
-      <div class="ce-kit"><h3>📲 Le plus simple : le kit co-évaluateur</h3>
+      ${withKit ? `<div class="ce-kit"><h3>📲 Le plus simple : le kit co-évaluateur</h3>
         <p>Le co-évaluateur scanne ce QR avec l'<b>appareil photo</b> de sa tablette : l'application s'ouvre avec la classe, prête à évaluer. Il tape seulement son nom.</p>
         <div id="ceKitQr" class="ce-qr"><p class="ce-hint">Préparation du QR…</p></div>
         <div class="ce-actions"><button type="button" data-act="kit-copy">🔗 Copier le lien (message, mail)</button></div>
         <p class="ce-hint">Sa tablette doit être connectée à Internet la première fois ; ensuite tout fonctionne hors connexion.</p></div>
-      <details class="ce-more"><summary>Autre méthode : QR de préparation à scanner dans l'application</summary>
+      <details class="ce-more"><summary>Autre méthode : QR de préparation à scanner dans l'application</summary>` : "<div>"}
       <p>La classe, les répartitions, le thème, le rôle et l'AFL2/AFL3 — <b>jamais tes notes AFL1</b>.</p>
       <p class="${ready < ep.candidates.length ? "ce-warn" : "ce-ok-text"}">${ready} élève(s) prêt(s) sur ${ep.candidates.length}${ready < ep.candidates.length ? " : les autres partent incomplets" : " ✓"}.</p>
       <p class="ce-hint">Le co-évaluateur choisit « Je suis co-évaluateur » puis scanne ${parts.length > 1 ? "les QR, dans n'importe quel ordre" : "ce QR"}.</p>
       ${qrBlock(parts, prepIndex, "prep-step")}
       <p class="ce-hint">Côte à côte : QR. À distance : fichier ou code.</p><details class="ce-more"><summary>Fichier ou code pour un envoi à distance</summary>
         <div class="ce-actions"><button type="button" data-act="prep-download">💾 Fichier</button><button type="button" data-act="prep-copy">📋 Copier le code</button></div>
-      </details></details>
+      </details>${withKit ? "</details>" : "</div>"}
       <div class="ce-actions"><button value="close" class="ce-primary">Fermer</button></div></div>`);
-    encodeKit(C.kitData(ep, db.me)).then(code => { const box = $("ceKitQr"); if (box) { box.innerHTML = qrImage(kitLink(code)); box.dataset.link = kitLink(code); } })
-      .catch(() => { const box = $("ceKitQr"); if (box) box.innerHTML = '<p class="ce-warn">Kit indisponible sur ce navigateur : utilise l’autre méthode.</p>'; });
+    if (withKit) fillKitQr(ep);
   }
 
   function startScan() {
@@ -2159,7 +2228,7 @@
       }
       case "new-epreuve": {
         const t = prompt("Nom de l'épreuve :", "Bac Musculation · " + new Date().getFullYear());
-        if (t && t.trim()) { newEpreuve(t.trim()); tab = "prep"; render(); openCandidates(active()); }
+        if (t && t.trim()) { newEpreuve(t.trim()); tab = "prep"; pstep = 1; render(); }
         break;
       }
       case "candidates": if (ep) openCandidates(ep); break;
@@ -2209,6 +2278,19 @@
         break;
       }
       case "pick": currentId = el.dataset.id; editChoices = null; listOpen = false; render(); scrollToSheet(); break;
+      // --- Assistant de préparation (professeur)
+      case "p-step": pstep = Math.max(1, Math.min(4, Number(el.dataset.step))); tab = "prep"; closeDialog(); render(); window.scrollTo({top:0}); break;
+      case "p-fix": currentId = el.dataset.id; pstep = 2; render(); scrollToSheet(); break;
+      case "p-order": {
+        const c = candById(ep, el.dataset.id); if (!c) break;
+        const list = ep.candidates;
+        if (c.order) { const o = c.order; c.order = 0; list.forEach(x => { if (x.order > o) x.order--; }); }
+        else c.order = Math.max(0, ...list.map(x => x.order || 0)) + 1;
+        c.organizationAt = Date.now(); save();
+        { const y = window.scrollY; render(); window.scrollTo({top:y}); } break;
+      }
+      case "p-order-alpha": W.candidates({...ep, candidates:ep.candidates.map(c => ({...c, order:0}))}).filter(W.eligible).forEach((x, i) => { candById(ep, x.id).order = i + 1; }); ep.candidates.filter(c => !W.eligible(c)).forEach(c => { c.order = 0; }); save(); render(); break;
+      case "p-order-clear": ep.candidates.forEach(c => { c.order = 0; }); save(); render(); break;
       // --- Mode guidé
       case "g-start": gstep = "sheet"; render(); window.scrollTo({top:0}); break;
       case "g-step": gstep = el.dataset.step === "start" ? null : "sheet"; render(); window.scrollTo({top:0}); break;
@@ -2338,7 +2420,7 @@
         break;
       }
       case "qr-step": shareIndex += Number(el.dataset.step); render(); break;
-      case "prep-step": prepIndex += Number(el.dataset.step); if (document.querySelector("#ceDialog .ce-prepshare")) openPrepShare(ep); else render(); break;
+      case "prep-step": prepIndex += Number(el.dataset.step); if (document.querySelector("#ceDialog .ce-prepshare")) openPrepShare(ep, prepShareKit); else render(); break;
       case "prep-download": downloadJSON(`preparation_${slug(ep.title)}_${slug(db.me)}.json`, C.exportPrepFile(ep, db.me), ep.title); break;
       case "prep-copy": {
         const text = C.prepParts(ep, db.me).join("\n");
@@ -2347,7 +2429,7 @@
       }
       case "go-receive": tab = "share"; render(); break;
       case "go-tab": tab = el.dataset.tab; render(); window.scrollTo({top:0}); break;
-      case "prep-share": openPrepShare(ep); break;
+      case "prep-share": openPrepShare(ep, el.dataset.kit !== "0"); break;
       case "set-role": ep.role = el.dataset.role; save(); closeDialog(); tab = ep.role === "prof" ? "prep" : "eval"; render(); toast(`Rôle : ${ROLE_LABEL[ep.role]}.`); break;
       case "demo": {
         const old = db.epreuves.find(e => e.demo);
