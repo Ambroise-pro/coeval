@@ -63,6 +63,37 @@ Site statique : aucun build, à publier tel quel (Vercel, GitHub Pages…). La c
 (fourni d'office par Vercel). Sur Vercel : projet de type « Other », sans commande de build, répertoire racine du dépôt ;
 `.vercelignore` exclut les tests de la publication.
 
+## Co-évaluateur : prise en main immédiate
+
+Le co-évaluateur découvre souvent l’application le jour de l’épreuve. Tout est
+fait pour qu’il n’ait rien à apprendre.
+
+- **Kit co-évaluateur (un seul QR)** : dans « Préparer › Transmettre », le
+  professeur affiche un QR (ou copie un lien). Le co-évaluateur le scanne avec
+  l’appareil photo : l’application s’ouvre avec la classe, les répartitions, les
+  thèmes, les rôles, l’AFL2/AFL3 et l’ordre de passage. Il tape seulement son nom.
+  Tout est contenu dans le lien (compressé, sans serveur) ; jamais de note AFL1.
+  La tablette doit être connectée la première fois pour enregistrer l’application.
+- **Mode guidé** (par défaut pour le co-évaluateur) : « Prochain passage » dans
+  l’ordre de passage → un critère par écran (une touche = degré + points ; à la
+  première note, on passe seul au critère suivant) → récapitulatif → « Valider ·
+  élève suivant ». Un élève absent sort de la file d’un toucher. Le menu ⋯ donne
+  accès à un autre élève, à l’envoi, à l’aide et à l’écran complet (le professeur
+  peut aussi passer en mode guidé par le menu ⋯ de la fiche).
+- **Compteur de répétitions** (Posture, Choix des paramètres) : un toucher par
+  répétition (✔ validée, ⚠ avec compensation, ✘ non validée), séries et
+  répétitions prévues réglables. Il propose Posture (part des répétitions avec
+  compensation : aucune → D4, jusqu’à 20 % → D3, au-delà → D2) et Choix des
+  paramètres (part des répétitions prévues réalisées : < 50 %, 50-75 %, 75-90 %,
+  ≥ 90 %). Une répétition avec compensation compte comme réalisée.
+- **Notes proposées** : observation pour Amplitude et Respiration (une question
+  par degré), entretien pour Identification des ressentis et Régulation des
+  paramètres, toujours du degré 4 vers le bas. L’évaluateur confirme d’un toucher.
+- **Que regarder ?** : 3 repères d’observation par critère (`TIPS` dans
+  `coeval-core.js`), et une aide de 3 écrans au premier lancement.
+- **Fin de séance** : quand toutes les fiches sont validées, un seul bouton
+  « Envoyer au professeur ».
+
 ## Organisation et confort de saisie
 
 **Sur tablette** (écrans « Évaluer » et « Préparer ») :
@@ -209,6 +240,7 @@ NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-afl1.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-fullscreen-filter-note.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-quiz.cjs
 NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-ergonomie.cjs
+NODE_PATH=/tmp/coeval-browser/node_modules node tests/browser-guide.cjs
 ```
 
 Chromium est recherché dans `/usr/bin/chromium` ; définir `CHROMIUM_PATH` si besoin.

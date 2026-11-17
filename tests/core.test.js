@@ -486,3 +486,53 @@ test("questions d'entretien : deux questions par degré, rotation, degré propos
   assert.equal(ep.mine.b.quiz, undefined);
 });
 
+
+test("compteur de répétitions : statistiques, degrés proposés, nettoyage", () => {
+  const st = C.repStats({s:[{p:10, m:"vvvvvvvvvv"}, {p:10, m:"vvvvvvvvvv"}]});
+  assert.deepEqual([st.planned, st.done, st.c, st.pctValid, st.pctComp], [20, 20, 0, 1, 0]);
+  assert.deepEqual(C.repProposal("post", st), {d:4, v:2}, "aucune compensation : D4");
+  assert.deepEqual(C.repProposal("param", st), {d:4, v:4}, "100 % réalisées : haut du D4");
+  const comp = n => C.repProposal("post", C.repStats({s:[{p:20, m:"c".repeat(n) + "v".repeat(20 - n)}]}));
+  assert.deepEqual(comp(2), {d:3, v:1.5}); assert.deepEqual(comp(3), {d:3, v:1.25}); assert.deepEqual(comp(4), {d:3, v:1});
+  assert.deepEqual(comp(6), {d:2, v:1}); assert.deepEqual(comp(10), {d:2, v:.5});
+  const real = (n, p = 20) => C.repProposal("param", C.repStats({s:[{p, m:"v".repeat(n) + "x"}]}));
+  assert.equal(real(9).d, 1); assert.equal(real(12).d, 2); assert.equal(real(16).d, 3); assert.equal(real(18).d, 4);
+  assert.equal(C.repProposal("post", C.repStats(null)), null);
+  assert.match(C.repSummary("param", C.repStats({s:[{p:12, m:"vvvvvvvvvvc"}]})), /11 répétition\(s\) réalisée\(s\) sur 12/);
+  const ep = {candidates:[], mine:{a:{v:{}, d:{}, reps:{s:[{p:"8", m:"vvzzc"}]}}, b:{v:{}, d:{}, reps:{s:[]}}}};
+  C.migrateEpreuve(ep, "Moi");
+  assert.deepEqual(ep.mine.a.reps, {s:[{p:8, m:"vvc"}]});
+  assert.equal(ep.mine.b.reps, undefined);
+});
+
+test("observation (amplitude, respiration) et entretien (ressentis) : questionnement descendant", () => {
+  ["amp", "resp", "ress", "regul"].forEach(id => assert.ok(C.QUIZ[id] && C.QUIZ_KIND[id] && C.TIPS[id], id));
+  ["post", "param"].forEach(id => assert.ok(C.TIPS[id]));
+  assert.deepEqual(C.quizPicked("amp").map(it => it.id), ["a2", "a3", "a4"], "une question par degré");
+  assert.deepEqual(C.quizDegree("amp", {a4:true}), {d:4, v:1});
+  assert.equal(C.quizLevels("amp", {a4:false}).join(">"), "4>3");
+  assert.deepEqual(C.quizDegree("amp", {a4:false, a3:true}), {d:3, v:.5});
+  assert.deepEqual(C.quizDegree("resp", {r4:false, r3:false, r2:false}), {d:1, v:0});
+  assert.deepEqual(C.quizDegree("ress", {s4a:true, s4b:true}), {d:4, v:2});
+  assert.deepEqual(C.quizDegree("ress", {s4a:true, s4b:false, s3a:true, s3b:true}), {d:3, v:1.25});
+});
+
+test("kit co-évaluateur : préparation, ordre de passage et groupes ; jamais l'AFL1", () => {
+  const D = require("../coeval-demo.js");
+  const prof = D.makeDemo("M. Prof");
+  prof.candidates[0].order = 3; prof.candidates[1].order = 1; prof.candidates[1].group = "Atelier A";
+  const kit = C.kitData(prof, "M. Prof", 1000);
+  assert.equal(kit.k, "coeval-kit");
+  assert.ok(kit.r.every(r => Array.isArray(r[4]) ? r[4].every((c, i) => C.PREP_CRITS.includes(C.GRID[i].id) || c === 0) : true), "aucune note AFL1");
+  const payload = C.kitToPayload(JSON.parse(JSON.stringify(kit)));
+  assert.equal(payload.prep, true);
+  assert.equal(C.kitToPayload({k:"autre"}), null);
+  const ep = {title:kit.t, role:"coeval", candidates:[], mine:{}, others:{}, final:{}, history:[]};
+  const res = C.importPayloads(ep, [payload], "Mme Coeval");
+  assert.ok(!res.error && ep.candidates.length === prof.candidates.length);
+  C.applyKitOrder(ep, kit);
+  const c0 = ep.candidates.find(c => c.name === prof.candidates[0].name), c1 = ep.candidates.find(c => c.name === prof.candidates[1].name);
+  assert.equal(c0.order, 3); assert.equal(c1.order, 1); assert.equal(c1.group, "Atelier A");
+  assert.ok(Object.values(ep.mine).every(e => C.AFL1_IDS.every(id => e.v[id] == null)), "aucune note AFL1 reçue");
+  assert.ok(C.importPayloads({title:"x", candidates:[], mine:{}, others:{}, final:{}, history:[]}, [payload], "M. Prof").error, "son propre kit refusé");
+});

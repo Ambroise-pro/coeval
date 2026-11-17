@@ -234,6 +234,137 @@
     ]
   };
 
+  /* =========================
+     OBSERVATION ET ENTRETIEN — autres critères AFL1
+     Amplitude et Respiration : une question d'observation par degré (l'évaluateur
+     répond en regardant la série). Identification des ressentis : questions
+     d'entretien, comme pour la régulation. Même questionnement descendant.
+  ========================= */
+  const one = (id, q, ok) => ({id, label:q, items:[{id, q, ok:typeof ok === "string" ? {"":ok} : ok}]});
+  QUIZ.amp = [
+    {level:2, title:"Évite la butée articulaire", topics:[
+      one("a2", "L'élève évite-t-il la butée articulaire (articulation non verrouillée, charge jamais « posée ») ?", "Amplitude peut-être limitée, mais sans butée.")]},
+    {level:3, title:"Amplitude correcte", topics:[
+      one("a3", "L'amplitude est-elle correcte sur la plupart des répétitions ?", "Quelques répétitions écourtées, surtout en fin de série.")]},
+    {level:4, title:"Amplitude optimale", topics:[
+      one("a4", "L'amplitude est-elle complète et contrôlée sur toutes les répétitions ?", "Amplitude optimale du début à la fin de la série, sans verrouiller.")]}
+  ];
+  QUIZ.resp = [
+    {level:2, title:"Respiration présente", topics:[
+      one("r2", "L'élève respire-t-il pendant la série, sans apnée prolongée ?", "Respiration présente, même si elle n'est pas encore placée sur l'effort.")]},
+    {level:3, title:"Respiration en partie placée", topics:[
+      one("r3", "La respiration est-elle au moins en partie placée sur l'effort ?", "Partiellement intégrée, parfois inversée.")]},
+    {level:4, title:"Respiration efficace", topics:[
+      one("r4", "Expire-t-il sur le temps d'effort à chaque répétition ?", "Expiration pendant l'effort, inspiration au retour, régulière sur toute la série.")]}
+  ];
+  QUIZ.ress = [
+    {level:2, title:"Exprime un ressenti", topics:[
+      one("s2a", "Qu'as-tu ressenti pendant ta série ?", "Au moins un ressenti, même incomplet (souvent psychologique : « c'était dur »)."),
+      one("s2b", "Ton partenaire a-t-il observé quelque chose sur ta série ?", "Reprend au moins en partie les observations du partenaire.")]},
+    {level:3, title:"Plusieurs ressentis et des données chiffrées", topics:[
+      one("s3a", "Cite deux types de ressentis différents pendant ta série.", {"":"Au moins deux types : musculaire, cardio-respiratoire, psychologique.", ...byMobile(m => ["Au moins deux types : musculaire, cardio-respiratoire, psychologique.", `Ressentis attendus : ${m.ressentis}`])}),
+      one("s3b", "Quelles données chiffrées as-tu relevées (répétitions, charge, temps) ?", {"":"Données chiffrées exploitables ; décision : je garde ou je modifie.", ...byMobile(m => ["Données chiffrées exploitables ; décision : je garde ou je modifie.", `À surveiller : ${m.indicateurs}`])})]},
+    {level:4, title:"Relie ressentis et observations au bon paramètre", topics:[
+      one("s4a", "Quel paramètre as-tu modifié, et quels ressentis et observations t'ont conduit à ce choix ?", {"":"Relie ses ressentis et les observations pour réguler le bon paramètre.", ...byMobile(m => ["Relie ses ressentis et les observations pour réguler le bon paramètre.", `Exemple : ${m.exemple}`])}),
+      one("s4b", "Quels types de ressentis as-tu eus, et que t'apprennent-ils sur ta charge ?", {"":"Tous les types de ressentis, associés aux observations.", ...byMobile(m => ["Musculaire, cardio-respiratoire et psychologique, associés aux observations.", `Ressentis attendus : ${m.ressentis}`])})]}
+  ];
+  Object.values(QUIZ).forEach(levels => levels.forEach(l => l.topics.forEach(t => t.items.forEach(it => { it.q = it.q.replace(/ \?/g, " ?"); }))));
+  /* « observe » : l'évaluateur répond en regardant ; « ask » : questions posées à l'élève. */
+  const QUIZ_KIND = {amp:"observe", resp:"observe", ress:"ask", regul:"ask"};
+
+  /* =========================
+     QUE REGARDER ? — repères d'observation par critère AFL1
+     Aide affichée au co-évaluateur ; à adapter ici (la grille n'est pas concernée).
+  ========================= */
+  const TIPS = {
+    amp:["Regarde la fin du mouvement : l'articulation va au bout de l'amplitude utile, sans se verrouiller.",
+      "Butée articulaire : coudes ou genoux verrouillés, charge « posée » sur l'articulation.",
+      "Amplitude limitée : demi-mouvements, surtout en fin de série quand la fatigue arrive."],
+    resp:["Regarde la bouche : l'élève souffle pendant l'effort, quand il pousse ou tire.",
+      "Apnée : joues gonflées, visage rouge, respiration bloquée.",
+      "Inversée : il inspire pendant l'effort et souffle au retour."],
+    post:["Utilise le compteur : un toucher par répétition, ⚠ dès qu'une compensation apparaît.",
+      "Compensations : dos qui se creuse ou s'arrondit, genoux qui rentrent, épaules qui montent, élan.",
+      "Posture de sécurité : dos neutre, gainage, placement vérifié avant la série."],
+    param:["Le compteur calcule la part de répétitions validées sur les répétitions prévues.",
+      "Charge, séries, répétitions et récupération cohérentes avec le mobile ?",
+      "Matériel bien installé et sécurisé : colliers, réglages, pareur ?"],
+    ress:["Pose les questions : l'élève cite-t-il ses ressentis (musculaires, respiratoires, psychologiques) ?",
+      "Les relie-t-il à des données chiffrées ou aux observations du partenaire ?",
+      "Méfie-toi du copier-coller du carnet du partenaire."],
+    regul:["Pose les questions, en commençant par le degré 4.",
+      "L'élève modifie-t-il un paramètre à partir de ce qu'il a mesuré et ressenti ?",
+      "Pense-t-il déjà à la prochaine séance ?"]
+  };
+
+  /* =========================
+     COMPTEUR DE RÉPÉTITIONS
+     ev.reps = {s:[{p:prévues, m:"vcx…"}]} : v validée, c avec compensation, x non validée.
+     Posture : part des répétitions faites avec compensation.
+     Choix des paramètres : part des répétitions prévues réalisées (v ou c).
+  ========================= */
+  const REP_DEFAULT = {"1":6, "2":20, "3":12};
+  function cleanReps(r) {
+    const s = Array.isArray(r?.s) ? r.s.slice(0, 12).map(x => ({p:Math.max(1, Math.min(60, Math.round(Number(x?.p) || 0))) || 10, m:String(x?.m || "").replace(/[^vcx]/g, "").slice(0, 120)})) : [];
+    return s.length ? {s} : null;
+  }
+  function repStats(reps) {
+    const s = reps?.s || [];
+    const count = ch => s.reduce((n, x) => n + [...x.m].filter(c => c === ch).length, 0);
+    const v = count("v"), c = count("c"), x = count("x");
+    const planned = s.reduce((n, x) => n + x.p, 0), done = v + c;
+    return {series:s.length, planned, v, c, x, done,
+      pctValid:planned ? Math.min(1, done / planned) : null, pctComp:done ? c / done : null};
+  }
+  const snap4 = (x, lo, hi) => Math.min(hi, Math.max(lo, Math.round(x * 4) / 4));
+  function repProposal(critId, st) {
+    if (!st) return null;
+    if (critId === "post") {
+      if (!st.done) return null;
+      const p = st.pctComp;
+      if (p === 0) return {d:4, v:2};
+      if (p <= .2) return {d:3, v:p <= .1 ? 1.5 : p <= .15 ? 1.25 : 1};
+      return {d:2, v:p <= .3 ? 1 : p <= .4 ? .75 : .5};
+    }
+    if (critId === "param") {
+      if (st.pctValid == null || !(st.done + st.x)) return null;
+      const p = st.pctValid;
+      if (p < .5) return {d:1, v:snap4(p / .5, 0, 1)};
+      if (p < .75) return {d:2, v:snap4(1.25 + (p - .5) / .25 * .75, 1.25, 2)};
+      if (p < .9) return {d:3, v:snap4(2.25 + (p - .75) / .15 * .75, 2.25, 3)};
+      return {d:4, v:snap4(3.25 + (p - .9) / .1 * .75, 3.25, 4)};
+    }
+    return null;
+  }
+  const pct = x => Math.round(x * 100) + " %";
+  function repSummary(critId, st) {
+    if (critId === "post") return `Compteur : ${st.c} répétition(s) avec compensation sur ${st.done} réalisée(s) (${pct(st.pctComp)}).`;
+    return `Compteur : ${st.done} répétition(s) réalisée(s) sur ${st.planned} prévue(s) (${pct(st.pctValid)}), ${st.series} série(s).`;
+  }
+
+  /* =========================
+     KIT CO-ÉVALUATEUR — tout l'envoi dans un seul lien / QR
+     Classe, répartitions, thèmes, rôles, AFL2/AFL3, ordre de passage et groupes.
+     Jamais de notes AFL1.
+  ========================= */
+  function kitData(ep, me, now = Date.now()) {
+    return {k:"coeval-kit", v:FORMAT_VERSION, t:ep.title, e:me, a:now, r:prepRows(ep),
+      o:ep.candidates.map(c => c.order || 0), g:ep.candidates.map(c => c.group || "")};
+  }
+  function kitToPayload(kit) {
+    if (!kit || kit.k !== "coeval-kit" || !Array.isArray(kit.r)) return null;
+    return {v:kit.v || 1, title:kit.t, by:kit.e, at:kit.a, batch:"kit-" + kit.a, part:null, single:false, prep:true, rows:kit.r};
+  }
+  /* Ordre de passage et groupes du kit reportés sur les candidats reçus. */
+  function applyKitOrder(ep, kit) {
+    (kit.r || []).forEach((r, i) => {
+      const c = ep.candidates.find(x => normName(x.name) === normName(r[0]));
+      if (!c) return;
+      if (Number(kit.o?.[i]) > 0) c.order = Math.floor(Number(kit.o[i]));
+      if (typeof kit.g?.[i] === "string" && kit.g[i]) c.group = kit.g[i];
+    });
+  }
+
   const quizItems = critId => (QUIZ[critId] || []).flatMap(l => l.topics.flatMap(t => t.items.map(it => ({...it, level:l.level, topic:t.id}))));
 
   /* Questions retenues : par niveau, les compétences tirées pour l'élève (au plus
@@ -244,7 +375,7 @@
     const answered = t => t.items.some(x => typeof a[x.id] === "boolean");
     return (QUIZ[critId] || []).flatMap(l => {
       const chosen = [];
-      const add = t => { if (chosen.length < QUIZ_PER_LEVEL && !chosen.includes(t)) chosen.push(t); };
+      const add = t => { if (chosen.length < Math.min(QUIZ_PER_LEVEL, l.topics.length) && !chosen.includes(t)) chosen.push(t); };
       l.topics.filter(t => t.items.some(x => x.id === p[t.id])).forEach(add);
       l.topics.filter(answered).forEach(add);
       l.topics.forEach(add);
@@ -262,10 +393,11 @@
     const out = {}, u = used || {};
     const least = (list, score) => { const min = Math.min(...list.map(score)); const pool = list.filter(x => score(x) === min); return pool[Math.floor(rand() * pool.length) % pool.length]; };
     (QUIZ[critId] || []).forEach(l => {
-      const kept = l.topics.filter(t => keep && t.items.some(it => it.id === keep[t.id])).slice(0, QUIZ_PER_LEVEL);
+      const per = Math.min(QUIZ_PER_LEVEL, l.topics.length);
+      const kept = l.topics.filter(t => keep && t.items.some(it => it.id === keep[t.id])).slice(0, per);
       kept.forEach(t => { out[t.id] = keep[t.id]; });
       let rest = l.topics.filter(t => !kept.includes(t));
-      for (let n = kept.length; n < QUIZ_PER_LEVEL && rest.length; n++) {
+      for (let n = kept.length; n < per && rest.length; n++) {
         const t = least(rest, t => t.items.reduce((sum, it) => sum + (u[it.id] || 0), 0));
         rest = rest.filter(x => x !== t);
         out[t.id] = least(t.items, it => u[it.id] || 0).id;
@@ -936,6 +1068,7 @@
     ["split", "theme", "role", "comment"].forEach(k => { ev[k] = typeof ev[k] === "string" ? ev[k] : ""; });
     if (ev.notes != null) { const n = cleanNotes(ev.notes); if (Object.keys(n).length) ev.notes = n; else delete ev.notes; }
     if (ev.quiz != null) { const qz = cleanQuiz(ev.quiz); if (Object.keys(qz).length) ev.quiz = qz; else delete ev.quiz; }
+    if (ev.reps != null) { const rp = cleanReps(ev.reps); if (rp) ev.reps = rp; else delete ev.reps; }
     if (ev.quizPick != null) { const pk = cleanPick(ev.quizPick); if (Object.keys(pk).length) ev.quizPick = pk; else delete ev.quizPick; }
     ev.updatedAt = typeof ev.updatedAt === "number" ? ev.updatedAt : 0;
     ev.done = !!ev.done;
@@ -1179,7 +1312,7 @@
 
   return {
     DATA_VERSION, FORMAT_VERSION, QR_PREFIX, PER_QR,
-    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, MOBILES, QUIZ, QUIZ_PER_LEVEL, quizItems, quizPicked, quizDraw, quizLevels, quizDegree, cleanQuiz, cleanPick, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
+    GRID, ROLE_LEVELS, AFL1_IDS, AFL2_IDS, PREP_CRITS, PREP_CHOICES, cleanNotes, NOTE_MAX, MOBILES, QUIZ, QUIZ_PER_LEVEL, QUIZ_KIND, TIPS, REP_DEFAULT, cleanReps, repStats, repProposal, repSummary, kitData, kitToPayload, applyKitOrder, quizItems, quizPicked, quizDraw, quizLevels, quizDegree, cleanQuiz, cleanPick, SPLITS, THEMES, ROLES, CHOICE_FIELDS, STATUS, DIVERGENT, MUST_DECIDE,
     uid, normName, q4, fmt, hash, clone, own, get, critById,
     inRange, degreeOf, stepsOf, descOf, degreeName, isValidValue, emptyEval, isFilled, scores, missingFields,
     encodeCell, decodeCell,

@@ -38,6 +38,8 @@
   let refilter = true;
   // Ergonomie tablette : tiroir de la liste, critères notés repliés, justification ouverte.
   let listOpen = false;
+  let gstep = null;            // mode guidé : null = prochain passage, 0..5 = critère, 6 = récapitulatif
+  let pendingKit = null;       // kit co-évaluateur reçu par le lien, en attente du nom
   const fold = {cand:null, open:new Set(), notes:new Set()};
   const openCrits = {};
   let stopCamera = null;
@@ -214,6 +216,7 @@
     const sheetTab = tab === "eval" || tab === "prep";
     if (!sheetTab) listOpen = false;
     document.body.classList.toggle("ce-compact", sheetTab);
+    document.body.classList.toggle("ce-guided", tab === "eval" && isGuided(active()) && !!db.me);
     document.body.classList.toggle("ce-list-open", listOpen && sheetTab);
     renderBar();
     const ep = active();
@@ -223,13 +226,20 @@
     if (!ep) { if (tab === "share") renderShare(main, null); else main.innerHTML = noEpreuveHTML(); return; }
     if (tab === "home") renderDashboard(main, ep);
     else if (tab === "prep") renderEval(main, ep, "prep");
-    else if (tab === "eval") renderEval(main, ep, "afl1");
+    else if (tab === "eval") { if (isGuided(ep)) renderGuided(main, ep); else renderEval(main, ep, "afl1"); }
     else if (tab === "share") renderShare(main, ep);
     else if (tab === "send") renderSend(main, ep);
     else renderCross(main, ep);
   }
 
   function welcomeHTML() {
+    if (pendingKit) return `<section class="ce-card ce-welcome ce-g-hero">
+      <p class="ce-g-kicker">Invitation à co-évaluer</p>
+      <h2>${esc(pendingKit.t || "Épreuve")}</h2>
+      <p>Avec <b>${esc(pendingKit.e || "le professeur")}</b> · ${(pendingKit.r || []).length} élèves. Tout est prêt : il te reste à évaluer l'AFL1.</p>
+      <label>Ton nom<input id="ceMeInput" placeholder="ex. Mme Martin" autocomplete="name"></label>
+      <button type="button" class="ce-primary ce-g-big" data-act="set-me">Commencer</button>
+    </section>`;
     return `<section class="ce-card ce-welcome">
       <h2>Bienvenue 👋</h2>
       <p>Le professeur de la classe prépare et valide ; le co-évaluateur note l'AFL1. Chacun sur son appareil, sans voir l'autre.</p>
@@ -355,7 +365,8 @@
             <details class="ce-menu"><summary aria-label="Autres actions" title="Autres actions">⋯</summary><div class="ce-menu-pop">
               <button type="button" data-act="edit-candidate" data-id="${esc(cand.id)}">${W.SITUATIONS[cand.situation||'present']} · Modifier</button>
               ${!prepScope ? `<button type="button" data-act="passage" aria-pressed="${!!ui.passage}">${ui.passage ? "Quitter le mode Passage" : "Mode Passage"}</button>
-              <button type="button" data-act="single-qr">📱 QR de ce candidat</button>` : ""}
+              <button type="button" data-act="single-qr">📱 QR de ce candidat</button>
+              <button type="button" data-act="g-mode" data-mode="guided">🧭 Mode guidé</button>` : ""}
             </div></details>
             <button type="button" data-act="step" data-step="1" aria-label="Candidat suivant"${nextDis}>→</button>
           </div>
@@ -367,6 +378,7 @@
           ${choice("role", {partenaire:"Partenaire", juge:"Juge"}, "Rôle")}
           ${allSet && !prepScope ? `<button type="button" class="ce-link" data-act="edit-choices">✓ Terminé</button>` : ""}`}
         </div>
+        ${!prepScope && roleOf(ep) === "coeval" && !passQueue(ep).length ? `<div class="ce-card ce-g-endcard"><b>🎉 Toutes tes évaluations sont terminées.</b><button type="button" class="ce-primary" data-act="g-send">📤 Envoyer au professeur</button></div>` : ""}
         ${foldBar}
         ${groups}
         ${prepScope ? `<div class="ce-total ce-actionbar">
@@ -400,6 +412,250 @@
 
   /* Critère noté et non rouvert : affiché sur une ligne (on voit ce qui reste à noter). */
   const isFolded = (crit, ev) => ev.v[crit.id] != null && !fold.open.has(crit.id) && !!C.descOf(crit, ev.role);
+
+  /* =========================================================
+     MODE GUIDÉ — pour le co-évaluateur qui découvre l'application le jour de l'épreuve.
+     Prochain passage → un critère par écran (une seule touche : degré + points)
+     → récapitulatif → valider → élève suivant dans l'ordre de passage.
+     Le professeur garde l'écran complet (il peut passer en mode guidé par le menu ⋯).
+     ========================================================= */
+  const isGuided = ep => !!ep && (ui.mode?.[roleOf(ep)] ?? (roleOf(ep) === "coeval" ? "guided" : "full")) === "guided";
+  function setMode(ep, mode) { ui.mode = {...(ui.mode || {}), [roleOf(ep)]:mode}; saveUi(); gstep = null; }
+
+  /* File de passage : élèves à évaluer, dans l'ordre de passage puis alphabétique. */
+  const passQueue = ep => W.candidates(ep).filter(c => W.eligible(c) && !C.get(ep.mine, c.id)?.done);
+
+  let tourShown = false;
+  function renderGuided(main, ep) {
+    if (!ui.tourDone && !tourShown) { tourShown = true; setTimeout(() => { if (!$("ceDialog").open && !ui.tourDone) openTour(); }, 60); }
+    const all = W.candidates(ep), elig = all.filter(W.eligible);
+    const done = elig.filter(c => C.get(ep.mine, c.id)?.done).length;
+    const queue = passQueue(ep);
+    if (!all.length) {
+      main.innerHTML = `<section class="ce-card ce-g-hero"><h2>Aucun élève pour l'instant</h2>
+        <p>Scanne le QR que le professeur te montre : la classe et les préparations arrivent d'un coup.</p>
+        <button type="button" class="ce-primary ce-g-big" data-act="go-tab" data-tab="share">📷 Recevoir la préparation</button></section>`;
+      return;
+    }
+    let cand = candById(ep, currentId);
+    if (gstep == null && (!cand || !queue.includes(cand)) && queue.length) { cand = queue[0]; currentId = cand.id; }
+    const top = `<div class="ce-g-top">
+        <div class="ce-g-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${elig.length}" aria-valuenow="${done}" aria-label="Évaluations terminées">
+          <b>${done}/${elig.length}</b> évaluations terminées<span><i style="width:${elig.length ? Math.round(done / elig.length * 100) : 0}%"></i></span></div>
+        <details class="ce-menu"><summary aria-label="Plus d'options" title="Plus d'options">⋯</summary><div class="ce-menu-pop">
+          <button type="button" data-act="g-choose">👥 Choisir un élève</button>
+          <button type="button" data-act="g-send">📤 Envoyer au professeur</button>
+          <button type="button" data-act="g-help">❔ Revoir l'aide</button>
+          <button type="button" data-act="g-mode" data-mode="full">🧰 Écran complet</button>
+        </div></details></div>`;
+    if (gstep == null) {
+      if (!queue.length) { main.innerHTML = top + guidedFinishedHTML(ep, done, elig.length); return; }
+      const ev = evalOf(ep, cand.id);
+      const next = queue.filter(c => c !== cand).slice(0, 3);
+      const started = C.AFL1_IDS.some(id => ev.v[id] != null);
+      main.innerHTML = top + `<section class="ce-card ce-g-hero">
+        <p class="ce-g-kicker">Prochain passage${cand.order ? ` · n° ${cand.order}` : ""}</p>
+        <h2 class="ce-g-name">${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</h2>
+        <p class="ce-g-chips">${ev.theme ? `<span>${esc(THEMES[ev.theme])}</span>` : `<span class="warn">Mobile non renseigné</span>`}${ev.role ? `<span>${esc(ROLES[ev.role])}</span>` : ""}${ev.split ? `<span>AFL2-AFL3 ${esc(ev.split)}</span>` : ""}</p>
+        ${ev.theme ? "" : `<div class="ce-choice"><span>Mobile</span>${Object.entries(THEMES).map(([k, v]) => `<button type="button" data-act="set" data-field="theme" data-value="${k}">${esc(v)}</button>`).join("")}</div>`}
+        <button type="button" class="ce-primary ce-g-big" data-act="g-start">${started ? "▶ Reprendre l'évaluation" : "▶ Commencer l'évaluation"}</button>
+        <div class="ce-g-row"><button type="button" data-act="g-choose">👥 Un autre élève</button><button type="button" data-act="g-absent">Absent</button></div>
+        ${next.length ? `<p class="ce-g-next">Ensuite : ${next.map(c => esc(c.name)).join(" · ")}</p>` : ""}
+      </section>`;
+      return;
+    }
+    const ev = evalOf(ep, cand.id);
+    const locked = !!ev.done || !W.eligible(cand);
+    const ids = C.AFL1_IDS;
+    const dots = `<div class="ce-g-dots">${ids.map((id, i) => `<button type="button" class="${ev.v[id] != null ? "filled" : ""}${i === gstep ? " here" : ""}" data-act="g-step" data-step="${i}" aria-label="${esc(C.critById(id).label)}">${i + 1}</button>`).join("")}<button type="button" class="${gstep === 6 ? "here" : ""}" data-act="g-step" data-step="6" aria-label="Récapitulatif">✓</button></div>`;
+    const head = `<div class="ce-g-head"><button type="button" class="ce-g-back" data-act="g-step" data-step="${gstep === 0 ? "start" : gstep - 1}" aria-label="Retour">←</button>
+      <div class="ce-g-who"><b>${esc(cand.name)}</b><small>${esc(THEMES[ev.theme] || "Mobile ?")}${locked ? " · 🔒 terminée" : ""}</small></div>${dots}</div>`;
+    if (gstep === 6) { main.innerHTML = top + head + guidedRecapHTML(ep, cand, ev, locked); return; }
+    const crit = C.critById(ids[gstep]);
+    const value = ev.v[crit.id], deg = C.degreeOf(crit, value, ev.d[crit.id]);
+    const desc = C.descOf(crit, ev.role);
+    if (C.QUIZ[crit.id] && !locked) ensureQuizPick(ep, ev, crit.id);
+    const tool = crit.id === "post" || crit.id === "param" ? repsHTML(ep, ev, locked, crit.id)
+      : C.QUIZ[crit.id] ? `<div class="ce-g-tool">${quizDialogHTML(crit, ev, cand, locked, true)}</div>` : "";
+    main.innerHTML = top + head + `<section class="ce-card ce-g-step" data-crit="${crit.id}">
+      <div class="ce-g-title"><span>${gstep + 1}/6 · ${esc(crit.group)}</span><h2>${esc(crit.label)} <small>/${crit.max}</small></h2>
+        <strong class="ce-g-val${value != null ? " set" : ""}">${value != null ? `${esc(degreeLabel(crit, deg))} · ${fmt(value)}` : "à noter"}</strong></div>
+      ${tipsHTML(crit.id, true)}
+      ${tool}
+      <h3 class="ce-g-sub">${tool ? "Ou choisis directement" : "Touche le degré et les points"}</h3>
+      <div class="ce-g-degs">${crit.deg.map((range, i) => {
+        const d = i + 1;
+        return `<div class="ce-g-deg d${d}${deg === d ? " on" : ""}"><b>${esc(crit.names ? crit.names[i] : "Degré " + d)}</b>
+          ${crit.key ? `<strong>${esc(crit.key[i])}</strong>` : ""}<span>${esc(desc[i])}</span>
+          <div class="ce-g-pts">${C.stepsOf(range).map(v => `<button type="button" class="${deg === d && value === v ? "on" : ""}" data-act="g-set" data-crit="${crit.id}" data-d="${d}" data-v="${v}"${locked ? " disabled" : ""}>${fmt(v)}</button>`).join("")}</div></div>`;
+      }).join("")}</div>
+      ${justifHTML(crit, ev, locked).replace('<details class="ce-just"', '<details class="ce-just ce-g-just"')}
+    </section>
+    <div class="ce-total ce-actionbar ce-g-bar">
+      <button type="button" class="ce-next" data-act="g-step" data-step="${gstep === 0 ? "start" : gstep - 1}">← Précédent</button>
+      <button type="button" class="ce-primary" data-act="g-step" data-step="${gstep + 1}">${gstep === 5 ? "Récapitulatif →" : "Suivant →"}</button>
+    </div>`;
+  }
+
+  function guidedRecapHTML(ep, cand, ev, locked) {
+    const s = C.scores(ev);
+    const missing = C.AFL1_IDS.filter(id => ev.v[id] == null);
+    return `<section class="ce-card ce-g-recap"><h2>Récapitulatif</h2>
+      <ul>${C.AFL1_IDS.map((id, i) => { const cr = C.critById(id), v = ev.v[id], d = C.degreeOf(cr, v, ev.d[id]);
+        return `<li class="${v == null ? "missing" : ""}"><button type="button" data-act="g-step" data-step="${i}"><span>${esc(cr.label)}${ev.notes?.[id] ? " ✎" : ""}</span>
+          <b class="ce-crit-sum-val d${d}">${v == null ? "à noter" : `${esc(degreeLabel(cr, d))} · ${fmt(v)}<small>/${cr.max}</small>`}</b></button></li>`; }).join("")}</ul>
+      <p class="ce-g-total">AFL1 : <b>${fmt(s.afl1 ?? s.afl1p)}</b> / 12${missing.length ? ` · ${missing.length} critère(s) à noter` : ""}</p>
+      <details class="ce-more"${ev.comment ? " open" : ""}><summary>💬 Remarque (facultatif)</summary>
+        <textarea data-field="comment" rows="2" aria-label="Remarque"${locked ? " readonly" : ""}>${esc(ev.comment)}</textarea></details>
+    </section>
+    <div class="ce-total ce-actionbar ce-g-bar">
+      <button type="button" class="ce-next" data-act="g-step" data-step="5">← Précédent</button>
+      ${locked ? `<button type="button" class="ce-next" data-act="reopen">Rouvrir la fiche</button><button type="button" class="ce-primary" data-act="g-step" data-step="start">Élève suivant →</button>`
+        : `<button type="button" class="ce-primary" data-act="g-validate"${missing.length ? " disabled" : ""}>✔ Valider · élève suivant</button>`}
+    </div>`;
+  }
+
+  /* Fin de séance : un seul geste pour envoyer au professeur. */
+  function guidedFinishedHTML(ep, done, total) {
+    const special = ep.candidates.filter(c => !W.eligible(c)).length;
+    return `<section class="ce-card ce-g-hero ce-g-done">
+      <p class="ce-g-kicker">C'est terminé</p>
+      <h2>🎉 ${done}/${total} évaluations terminées</h2>
+      ${special ? `<p>${special} élève(s) absent(s), dispensé(s) ou reporté(s).</p>` : ""}
+      <p>Il reste à envoyer tes évaluations au professeur.</p>
+      <button type="button" class="ce-primary ce-g-big" data-act="g-send">📤 Envoyer au professeur</button>
+      <div class="ce-g-row"><button type="button" data-act="g-choose">Revoir une fiche</button></div>
+    </section>`;
+  }
+
+  function openGuidedChooser(ep) {
+    const list = W.candidates(ep);
+    openDialog(`<div class="ce-g-chooser"><div class="ce-quiz-top"><h2>Choisir un élève</h2><button type="button" value="close" aria-label="Fermer">✕</button></div>
+      <ul>${list.map(c => { const e = C.get(ep.mine, c.id), st = !W.eligible(c) ? W.SITUATIONS[c.situation] : e?.done ? "✓ terminée" : C.AFL1_IDS.some(id => e?.v?.[id] != null) ? "en cours" : "à faire";
+        return `<li><button type="button" data-act="g-pick" data-id="${esc(c.id)}" class="${e?.done ? "done" : ""}"><span>${c.order ? `<i>${c.order}.</i> ` : ""}${esc(c.name)}</span><small>${esc(st)}</small></button></li>`; }).join("")}</ul></div>`);
+  }
+
+  /* Validation d'une fiche (mode guidé) : même effet que « Terminer AFL1 ». */
+  function finishEval(ep, cand) {
+    const e = evalOf(ep, cand.id);
+    e.done = true;
+    e.doneAt = Date.now();
+    if (!e.initial) e.initial = snapshot(e);
+    log(ep, {type:"eval-done", cand:cand.id, candName:cand.name, total:C.scores(e).total});
+    save();
+  }
+
+  /* Démonstration de premier lancement : trois écrans, puis c'est parti. */
+  const TOUR = [
+    ["👋 Bienvenue", "Tu vas évaluer l'AFL1 des élèves, un par un, dans l'ordre de passage. Tout est enregistré sur cette tablette, même sans connexion."],
+    ["👆 Un critère par écran", "Pour chaque critère, touche le degré et les points en un seul geste. Le compteur de répétitions et les questions d'entretien te proposent la note : tu confirmes."],
+    ["✔ Valider puis envoyer", "Au récapitulatif, valide la fiche : l'élève suivant s'affiche. À la fin, un bouton envoie tes évaluations au professeur."]
+  ];
+  function openTour(i = 0) {
+    const [t, body] = TOUR[i];
+    openDialog(`<div class="ce-tour"><p class="ce-g-kicker">${i + 1}/${TOUR.length}</p><h2>${t}</h2><p>${body}</p>
+      <div class="ce-actions">${i < TOUR.length - 1 ? `<button type="button" data-act="tour" data-i="${i + 1}" class="ce-primary">Suivant →</button><button type="button" data-act="tour-end">Passer</button>`
+        : `<button type="button" data-act="tour-end" class="ce-primary">C'est parti</button>`}</div></div>`);
+  }
+
+  /* « Que regarder ? » : repères d'observation du critère. */
+  function tipsHTML(critId, open) {
+    const tips = C.TIPS[critId];
+    if (!tips) return "";
+    return `<details class="ce-tips" data-crit="${critId}"${open ? " open" : ""}><summary>👁 Que regarder ?</summary><ul>${tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul></details>`;
+  }
+
+  /* Compteur de répétitions : un toucher par répétition ; propose Posture et Choix des paramètres. */
+  function repsHTML(ep, ev, locked, focus) {
+    const reps = ev.reps || {s:[]};
+    const cur = reps.s[reps.s.length - 1];
+    const st = C.repStats(reps);
+    const dis = locked ? " disabled" : "";
+    const marks = m => [...m].map(ch => `<i class="ce-rep ${ch}" aria-hidden="true">${ch === "v" ? "✔" : ch === "c" ? "⚠" : "✘"}</i>`).join("");
+    const prop = id => {
+      const p = C.repProposal(id, st), cr = C.critById(id);
+      if (!p) return `<li><span>${esc(cr.label)}</span><small>${id === "post" ? "compte au moins une répétition" : "compte les répétitions"}</small></li>`;
+      const same = ev.d[id] === p.d && ev.v[id] === p.v;
+      return `<li class="${id === focus ? "focus" : ""}"><span>${esc(cr.label)}</span><b>${esc(degreeLabel(cr, p.d))} · ${fmt(p.v)}</b>${same ? `<em>✔ placé</em>` : `<button type="button" data-act="rep-place" data-crit="${id}"${dis}>Placer</button>`}</li>`;
+    };
+    return `<div class="ce-reps" data-focus="${focus}">
+      <div class="ce-reps-head"><b>🔢 Compteur de répétitions</b>
+        ${cur ? `<span class="ce-reps-plan">Série ${reps.s.length} · prévues <button type="button" data-act="rep-plan" data-delta="-1" aria-label="Une répétition prévue de moins"${dis}>−</button><b>${cur.p}</b><button type="button" data-act="rep-plan" data-delta="1" aria-label="Une répétition prévue de plus"${dis}>+</button></span>` : ""}</div>
+      ${cur ? `<div class="ce-reps-marks">${reps.s.map((s, i) => `<div><small>S${i + 1}</small>${marks(s.m) || "<em>—</em>"}<small>${[...s.m].filter(c => c !== "x").length}/${s.p}</small></div>`).join("")}</div>` : `<p class="ce-hint">Touche un bouton à chaque répétition de la série.</p>`}
+      <div class="ce-reps-btns">
+        <button type="button" class="v" data-act="rep-add" data-mark="v"${dis}>✔ Validée</button>
+        <button type="button" class="c" data-act="rep-add" data-mark="c"${dis}>⚠ Compensation</button>
+        <button type="button" class="x" data-act="rep-add" data-mark="x"${dis}>✘ Non validée</button>
+      </div>
+      <div class="ce-reps-tools"><button type="button" data-act="rep-undo"${dis || (!cur?.m ? " disabled" : "")}>↶ Retirer la dernière</button><button type="button" data-act="rep-series"${dis}>+ Nouvelle série</button></div>
+      ${st.planned ? `<p class="ce-reps-stats">Réalisées <b>${st.done}/${st.planned}</b> (${Math.round((st.pctValid || 0) * 100)} %) · compensations <b>${st.c}</b>${st.done ? ` (${Math.round(st.pctComp * 100)} %)` : ""}</p>` : ""}
+      <ul class="ce-reps-prop">${prop("post")}${prop("param")}</ul>
+    </div>`;
+  }
+
+  function openReps(ep, focus) {
+    const cand = candById(ep, currentId), ev = evalOf(ep, currentId);
+    const locked = !!ev.done || !W.eligible(cand);
+    openDialog(`<div class="ce-reps-dlg"><div class="ce-quiz-top"><h2>${esc(cand.name)}</h2><button type="button" value="close" data-act="quiz-close" aria-label="Fermer">✕</button></div>${repsHTML(ep, ev, locked, focus)}</div>`);
+    $("ceDialog").classList.add("ce-quiz-dlg");
+    $("ceDialog").addEventListener("close", () => $("ceDialog").classList.remove("ce-quiz-dlg"), {once:true});
+  }
+
+  /* Après une action du compteur ou du questionnaire : rafraîchit la fenêtre ouverte, ou l'écran. */
+  function refreshTool(ep, kind, crit) {
+    const dlg = $("ceDialog");
+    const y = window.scrollY;
+    const boxY = dlg.open ? dlg.querySelector(".ce-dialog")?.scrollTop || 0 : 0;
+    render(); window.scrollTo({top:y});
+    if (dlg.open && kind === "reps" && dlg.querySelector(".ce-reps")) { openReps(ep, dlg.querySelector(".ce-reps").dataset.focus); const b = dlg.querySelector(".ce-dialog"); if (b) b.scrollTop = boxY; }
+    else if (dlg.open && kind === "quiz" && dlg.querySelector(".ce-quiz")) openQuiz(ep, crit);
+  }
+
+  /* =========================================================
+     KIT CO-ÉVALUATEUR : lien compressé (sans serveur) contenant toute la préparation.
+     ========================================================= */
+  const b64u = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+  async function encodeKit(data) {
+    const bytes = new TextEncoder().encode(JSON.stringify(data));
+    if (typeof CompressionStream === "function") {
+      const cs = new CompressionStream("deflate-raw"), w = cs.writable.getWriter();
+      w.write(bytes); w.close();
+      return "z" + b64u(new Uint8Array(await new Response(cs.readable).arrayBuffer()));
+    }
+    return "j" + b64u(bytes);
+  }
+  async function decodeKit(code) {
+    const bytes = unb64u(code.slice(1));
+    let text;
+    if (code[0] === "z") {
+      if (typeof DecompressionStream !== "function") throw new Error("Ce navigateur est trop ancien pour ouvrir le kit : utilise le QR de préparation.");
+      const ds = new DecompressionStream("deflate-raw"), w = ds.writable.getWriter();
+      w.write(bytes); w.close();
+      text = await new Response(ds.readable).text();
+    } else text = new TextDecoder().decode(bytes);
+    return JSON.parse(text);
+  }
+  const kitLink = code => location.origin + location.pathname.replace(/index\.html$/, "") + "#kit=" + code;
+
+  /* Installe la préparation du kit (nouvelle épreuve, ou celle du même nom) et ouvre le mode guidé. */
+  function applyKit(kit) {
+    const payload = C.kitToPayload(kit);
+    if (!payload) { toast("Kit illisible."); return false; }
+    const target = db.epreuves.find(e => !e.archived && normName(e.title) === normName(kit.t) && e.role === "coeval") || null;
+    const preview = W.previewImport(target || emptyImportEpreuve(kit.t, true), [payload], db.me);
+    if (preview.error) { toast(preview.error); return false; }
+    C.applyKitOrder(preview.ep, kit);
+    if (target) db.epreuves[db.epreuves.indexOf(target)] = preview.ep; else db.epreuves.unshift(preview.ep);
+    db.activeId = preview.ep.id;
+    log(preview.ep, {type:"receive", from:preview.result.by});
+    save();
+    pendingKit = null; tab = "eval"; gstep = null; currentId = null;
+    render();
+    toast(`✅ ${preview.ep.candidates.length} élèves reçus de ${preview.result.by}.`);
+    if (!ui.tourDone) openTour();
+    return true;
+  }
 
   /* Curseur par critère : ses crans sont les points de chaque degré, degré après degré.
      Une valeur commune à deux degrés (ex. 0,25 en D1 et en D2) donne deux crans distincts.
@@ -452,6 +708,7 @@
       <div class="ce-crit-head"><b>${esc(crit.label)}</b><button type="button" class="ce-just-btn${ev.notes?.[crit.id] ? " has" : ""}" data-act="note-toggle" data-crit="${crit.id}" aria-label="Justifier la note · ${esc(crit.label)}" title="Justifier la note">✎</button>
         <span class="ce-crit-val"><strong class="ce-slide-val">${cur ? esc(stepText(crit, cur)) : "à noter"}</strong> /${crit.max}</span>${value != null ? `<button type="button" class="ce-fold-btn" data-act="crit-collapse" data-crit="${crit.id}" aria-label="Replier · ${esc(crit.label)}" title="Replier">▴</button>` : ""}</div>
       ${recheck}
+      ${tipsHTML(crit.id, false)}
       ${degBoxes(crit, desc, deg)}
       <div class="ce-slide${cur ? ` d${cur.d}` : " unset"}">
         <div class="ce-slide-track" style="background:${gradient}">${steps.map((st, k) => `<span class="ce-tick" style="left:${pos(k)}%"></span>`).join("")}</div>
@@ -459,7 +716,7 @@
         <input type="range" class="ce-slider" min="0" max="1000" step="1" value="${P[idx >= 0 ? idx : 0]}" data-crit="${crit.id}" data-idx="${idx >= 0 ? idx : 0}"
           data-pos="${P.join(",")}" data-steps="${steps.map(st => st.d + ":" + st.v).join(",")}" aria-label="${esc(crit.label)}" aria-valuetext="${cur ? esc(stepText(crit, cur)) + " point(s)" : "non noté"}"${locked ? " disabled" : ""}>
       </div>
-      ${quizHTML(crit, ev, locked)}
+      ${quizHTML(crit, ev, locked)}${crit.id === "post" || crit.id === "param" ? `<div class="ce-quiz-open"><button type="button" data-act="reps-open" data-crit="${crit.id}">🔢 Compteur de répétitions</button>${ev.reps ? `<span class="ce-hint">${C.repStats(ev.reps).done} rép. comptée(s)</span>` : ""}</div>` : ""}
       ${justifHTML(crit, ev, locked)}
     </div>`;
   }
@@ -475,13 +732,13 @@
     const total = picked.length;
     const answered = picked.filter(it => typeof a[it.id] === "boolean").length;
     const prop = C.quizDegree(crit.id, a, pick);
-    return `<div class="ce-quiz-open"><button type="button" data-act="quiz-open" data-crit="${crit.id}">❓ Questions d'entretien</button>
+    return `<div class="ce-quiz-open"><button type="button" data-act="quiz-open" data-crit="${crit.id}">${C.QUIZ_KIND[crit.id] === "observe" ? "👁 Observation" : "❓ Questions d'entretien"}</button>
       ${answered ? `<span class="ce-hint">${answered}/${total} réponses${prop ? ` · proposé ${esc(stepText(crit, prop))} pt` : ""}</span>` : ""}</div>`;
   }
 
   /* Questionnaire (popup) adapté au mobile : les réponses proposent un degré et des points,
      que l'évaluateur place sur le curseur. */
-  function quizDialogHTML(crit, ev, cand, locked) {
+  function quizDialogHTML(crit, ev, cand, locked, inline) {
     const levels = C.QUIZ[crit.id];
     const a = ev.quiz?.[crit.id] || {}, pick = ev.quizPick?.[crit.id];
     const theme = ev.theme || "";
@@ -493,7 +750,7 @@
     const btn = (it, val, label) => `<button type="button" data-act="quiz" data-crit="${crit.id}" data-q="${it.id}" data-ans="${val ? 1 : 0}"
       class="${a[it.id] === val ? (val ? "on yes" : "on no") : ""}" aria-pressed="${a[it.id] === val}"${locked ? " disabled" : ""}>${label}</button>`;
     return `<div class="ce-quiz" data-crit="${crit.id}">
-      <div class="ce-quiz-top"><h2>${esc(crit.label)} · ${esc(cand.name)}</h2><button type="button" value="close" data-act="quiz-close" aria-label="Fermer">✕</button></div>
+      ${inline ? `<p class="ce-quiz-inline-t">${C.QUIZ_KIND[crit.id] === "observe" ? "👁 Observation" : "❓ Questions d'entretien"}</p>` : `<div class="ce-quiz-top"><h2>${esc(crit.label)} · ${esc(cand.name)}</h2><button type="button" value="close" data-act="quiz-close" aria-label="Fermer">✕</button></div>`}
       <p class="ce-quiz-sub">Mobile : <b>${esc(THEMES[theme] || "non renseigné")}</b>${locked ? " · 🔒 lecture seule" : ""}</p>
       ${theme ? "" : `<p class="ce-hint">Renseigne le thème de l'élève pour des repères propres à son mobile.</p>`}
       <p class="ce-hint ce-quiz-how">On commence par le degré 4. Si une réponse n'est pas satisfaisante, on descend au degré inférieur.</p>
@@ -552,7 +809,7 @@
     const shown = C.quizLevels(critId, a, pick);
     const items = C.quizPicked(critId, pick, a).filter(it => shown.includes(it.level) && typeof a[it.id] === "boolean");
     const no = items.filter(it => !a[it.id]);
-    return (`Entretien : ${items.length - no.length}/${items.length} réponses satisfaisantes.`
+    return (`${C.QUIZ_KIND[critId] === "observe" ? "Observation" : "Entretien"} : ${items.length - no.length}/${items.length} réponses satisfaisantes.`
       + (no.length ? ` Non satisfait : ${no.map(it => it.q.replace(/\s*[?.]$/, "")).join(" ; ")}.` : "")).slice(0, C.NOTE_MAX);
   }
 
@@ -621,7 +878,7 @@
 
   /* Retour discret après un enregistrement : la note clignote, petite vibration si possible. */
   function flashSaved(critId) {
-    const box = document.querySelector(`.ce-slide-crit[data-crit="${critId}"]`);
+    const box = document.querySelector(`.ce-slide-crit[data-crit="${critId}"], .ce-g-step[data-crit="${critId}"]`);
     if (box) { box.classList.remove("ce-saved"); void box.offsetWidth; box.classList.add("ce-saved"); setTimeout(() => box.classList.remove("ce-saved"), 900); }
     try { navigator.vibrate?.(12); } catch (e) {}
   }
@@ -838,14 +1095,22 @@
     prepIndex = Math.min(prepIndex, Math.max(0, parts.length - 1));
     const ready = C.prepReady(ep);
     openDialog(`<div class="ce-prepshare"><h2>📤 Transmettre au co-évaluateur</h2>
+      <div class="ce-kit"><h3>📲 Le plus simple : le kit co-évaluateur</h3>
+        <p>Le co-évaluateur scanne ce QR avec l'<b>appareil photo</b> de sa tablette : l'application s'ouvre avec la classe, prête à évaluer. Il tape seulement son nom.</p>
+        <div id="ceKitQr" class="ce-qr"><p class="ce-hint">Préparation du QR…</p></div>
+        <div class="ce-actions"><button type="button" data-act="kit-copy">🔗 Copier le lien (message, mail)</button></div>
+        <p class="ce-hint">Sa tablette doit être connectée à Internet la première fois ; ensuite tout fonctionne hors connexion.</p></div>
+      <details class="ce-more"><summary>Autre méthode : QR de préparation à scanner dans l'application</summary>
       <p>La classe, les répartitions, le thème, le rôle et l'AFL2/AFL3 — <b>jamais tes notes AFL1</b>.</p>
       <p class="${ready < ep.candidates.length ? "ce-warn" : "ce-ok-text"}">${ready} élève(s) prêt(s) sur ${ep.candidates.length}${ready < ep.candidates.length ? " : les autres partent incomplets" : " ✓"}.</p>
       <p class="ce-hint">Le co-évaluateur choisit « Je suis co-évaluateur » puis scanne ${parts.length > 1 ? "les QR, dans n'importe quel ordre" : "ce QR"}.</p>
       ${qrBlock(parts, prepIndex, "prep-step")}
       <p class="ce-hint">Côte à côte : QR. À distance : fichier ou code.</p><details class="ce-more"><summary>Fichier ou code pour un envoi à distance</summary>
         <div class="ce-actions"><button type="button" data-act="prep-download">💾 Fichier</button><button type="button" data-act="prep-copy">📋 Copier le code</button></div>
-      </details>
+      </details></details>
       <div class="ce-actions"><button value="close" class="ce-primary">Fermer</button></div></div>`);
+    encodeKit(C.kitData(ep, db.me)).then(code => { const box = $("ceKitQr"); if (box) { box.innerHTML = qrImage(kitLink(code)); box.dataset.link = kitLink(code); } })
+      .catch(() => { const box = $("ceKitQr"); if (box) box.innerHTML = '<p class="ce-warn">Kit indisponible sur ce navigateur : utilise l’autre méthode.</p>'; });
   }
 
   function startScan() {
@@ -1890,7 +2155,9 @@
       case "set-me": {
         const v = $("ceMeInput").value.trim();
         if (!v) { toast("Indique ton nom."); return; }
-        db.me = v; save(); render(); break;
+        db.me = v; save();
+        if (pendingKit) { applyKit(pendingKit); break; }
+        render(); break;
       }
       case "new-epreuve": {
         const t = prompt("Nom de l'épreuve :", "Bac Musculation · " + new Date().getFullYear());
@@ -1910,8 +2177,7 @@
         if (!Object.keys(e.quiz).length) delete e.quiz;
         e.updatedAt = Date.now();
         save();
-        const y = window.scrollY; render(); window.scrollTo({top:y});
-        openQuiz(ep, crit);
+        refreshTool(ep, "quiz", crit);
         break;
       }
       case "quiz-open": openQuiz(ep, el.dataset.crit); break;
@@ -1927,8 +2193,7 @@
         e.quizPick[crit][topicId] = pool[Math.floor(Math.random() * pool.length)].id;
         if (e.quiz?.[crit]) { delete e.quiz[crit][cur]; if (!Object.keys(e.quiz[crit]).length) delete e.quiz[crit]; if (!Object.keys(e.quiz).length) delete e.quiz; }
         save();
-        const y = window.scrollY; render(); window.scrollTo({top:y});
-        openQuiz(ep, crit);
+        refreshTool(ep, "quiz", crit);
         break;
       }
       case "quiz-close": closeDialog(); break;
@@ -1937,14 +2202,77 @@
         const prop = C.quizDegree(crit, e.quiz?.[crit], e.quizPick?.[crit]);
         if (!prop || e.done) break;
         setValue(ep, crit, prop.d, prop.v);
-        if (!e.notes?.[crit]) { e.notes = e.notes || {}; e.notes[crit] = quizSummary(crit, e.quiz[crit], e.quizPick?.[crit]); save(); }
+        const summ = quizSummary(crit, e.quiz[crit], e.quizPick?.[crit]);
+        if (!e.notes?.[crit]) { e.notes = e.notes || {}; e.notes[crit] = summ; save(); }
         closeDialog();
         const y = window.scrollY; render(); window.scrollTo({top:y});
         flashSaved(crit);
-        toast(`${C.critById(crit).label} : ${stepText(C.critById(crit), prop)} pt placé${e.notes?.[crit]?.startsWith("Entretien") ? ", justification ajoutée" : ""}.`);
+        toast(`${C.critById(crit).label} : ${stepText(C.critById(crit), prop)} pt placé${e.notes?.[crit] === summ ? ", justification ajoutée" : ""}.`);
         break;
       }
       case "pick": currentId = el.dataset.id; editChoices = null; listOpen = false; render(); scrollToSheet(); break;
+      // --- Mode guidé
+      case "g-start": { const e = evalOf(ep, currentId); const i = C.AFL1_IDS.findIndex(id => e.v[id] == null); gstep = i < 0 ? 6 : i; render(); window.scrollTo({top:0}); break; }
+      case "g-step": gstep = el.dataset.step === "start" ? null : Math.max(0, Math.min(6, Number(el.dataset.step))); render(); window.scrollTo({top:0}); break;
+      case "g-set": {
+        const e = evalOf(ep, currentId), crit = el.dataset.crit, i = C.AFL1_IDS.indexOf(crit);
+        if (e.done || !W.eligible(cand)) break;
+        const first = e.v[crit] == null;
+        setValue(ep, crit, Number(el.dataset.d), Number(el.dataset.v));
+        render(); flashSaved(crit);
+        // Première note du critère : on passe seul au suivant ; une correction reste sur place.
+        if (first && i >= 0) setTimeout(() => { if (tab === "eval" && gstep === i && currentId === cand.id) { gstep = i + 1; render(); window.scrollTo({top:0}); } }, 550);
+        break;
+      }
+      case "g-validate": {
+        const e = evalOf(ep, currentId);
+        if (C.AFL1_IDS.some(id => e.v[id] == null)) { toast("Note d'abord tous les critères."); break; }
+        finishEval(ep, cand);
+        const next = passQueue(ep)[0];
+        currentId = next?.id || null; gstep = null; render(); window.scrollTo({top:0});
+        toast(`✔ Fiche de ${cand.name} validée.${next ? ` Suivant : ${next.name}.` : ""}`);
+        break;
+      }
+      case "g-choose": openGuidedChooser(ep); break;
+      case "g-pick": { currentId = el.dataset.id; closeDialog(); const e = C.get(ep.mine, currentId); gstep = e?.done ? 6 : null; render(); window.scrollTo({top:0}); break; }
+      case "g-absent":
+        if (!cand || !confirm(`${cand.name} est absent ? L'élève sort de la file (ses notes éventuelles sont conservées).`)) break;
+        cand.situation = "absent"; cand.organizationAt = Date.now(); save(); gstep = null; currentId = null; render(); toast(`${cand.name} : absent.`); break;
+      case "g-send": closeDialog(); tab = "send"; render(); window.scrollTo({top:0}); break;
+      case "g-help": openTour(0); break;
+      case "g-mode": setMode(ep, el.dataset.mode); render(); window.scrollTo({top:0}); break;
+      case "tour": openTour(Number(el.dataset.i)); break;
+      case "tour-end": ui.tourDone = true; saveUi(); closeDialog(); break;
+      // --- Compteur de répétitions
+      case "reps-open": openReps(ep, el.dataset.crit); break;
+      case "rep-add": case "rep-undo": case "rep-series": case "rep-plan": case "rep-place": {
+        const e = evalOf(ep, currentId);
+        if (e.done || !W.eligible(cand)) break;
+        const reps = e.reps || (e.reps = {s:[]});
+        const def = () => reps.s[reps.s.length - 1]?.p || C.REP_DEFAULT[e.theme] || 10;
+        if (act === "rep-place") {
+          const crit = el.dataset.crit, p = C.repProposal(crit, C.repStats(reps));
+          if (!p) break;
+          setValue(ep, crit, p.d, p.v);
+          const summ = C.repSummary(crit, C.repStats(reps));
+          if (!e.notes?.[crit]) { e.notes = e.notes || {}; e.notes[crit] = summ; }
+          toast(`${C.critById(crit).label} : ${stepText(C.critById(crit), p)} pt placé.`);
+        } else {
+          if (!reps.s.length || act === "rep-series") reps.s.push({p:def(), m:""});
+          const cur = reps.s[reps.s.length - 1];
+          if (act === "rep-add" && cur.m.length < 120) cur.m += el.dataset.mark;
+          if (act === "rep-undo") cur.m = cur.m.slice(0, -1);
+          if (act === "rep-plan") cur.p = Math.max(1, Math.min(60, cur.p + Number(el.dataset.delta)));
+        }
+        e.updatedAt = Date.now();
+        save();
+        refreshTool(ep, "reps");
+        if (act === "rep-place") flashSaved(el.dataset.crit);
+        break;
+      }
+      // --- Kit co-évaluateur
+      case "kit-copy": { const link = $("ceKitQr")?.dataset.link; if (!link) break; navigator.clipboard?.writeText(link).then(() => toast("Lien du kit copié."), () => toast("Copie impossible.")); break; }
+      case "kit-apply": closeDialog(); if (pendingKit) applyKit(pendingKit); break;
       case "list-open": listOpen = true; render(); document.querySelector(".ce-list #ceSearch, .ce-list .ce-cand.current")?.scrollIntoView?.({block:"nearest"}); break;
       case "list-close": listOpen = false; render(); break;
       case "crit-expand": fold.open.add(el.dataset.crit); { const y = window.scrollY; render(); window.scrollTo({top:y}); } break;
@@ -2345,5 +2673,19 @@
   if(navigator.serviceWorker) navigator.serviceWorker.ready.then(checkOffline);
   window.addEventListener('online',checkOffline);
   window.CoEval = {core:C, get db() { return db; }, importText};
+  // Le co-évaluateur en mode guidé rouvre directement sur son prochain passage.
+  if (db.me && active() && isGuided(active())) tab = "eval";
   render();
+  // Lien « kit co-évaluateur » (#kit=…) : on lit la préparation, puis on retire le code de l'adresse.
+  if (location.hash.startsWith("#kit=")) {
+    const code = location.hash.slice(5);
+    history.replaceState(null, "", location.pathname + location.search);
+    decodeKit(code).then(kit => {
+      if (!C.kitToPayload(kit)) throw new Error("Kit illisible.");
+      pendingKit = kit;
+      if (!db.me) { tab = "eval"; render(); return; }
+      openDialog(`<h2>Co-évaluer « ${esc(kit.t || "Épreuve")} » ?</h2><p>Avec <b>${esc(kit.e || "le professeur")}</b> · ${(kit.r || []).length} élèves. La classe et les préparations vont être installées sur cette tablette.</p>
+        <div class="ce-actions"><button type="button" class="ce-primary" data-act="kit-apply">Commencer</button><button value="close">Annuler</button></div>`);
+    }).catch(e => toast(e.message || "Kit illisible."));
+  }
 })();
