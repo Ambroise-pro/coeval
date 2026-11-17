@@ -921,3 +921,9 @@ dialog.ce-quiz-dlg .ce-dialog{padding:0;max-height:calc(100dvh - 24px);overflow:
 .ce-g-bar .ce-total-scores strong{margin-left:0;font-size:20px}
 .ce-g-bar .ce-total-actions .ce-primary:disabled{opacity:.55}
 @media (max-width:699px){ .ce-g-crit-head h3{font-size:18px} .ce-g-bar .ce-total-scores{flex:1 1 100%} }
+/* Mode guidé : curseur de l'écran évaluateur dans chaque carte */
+.ce-g-crit{padding:12px}
+.ce-g-crit>.ce-slide-crit{border:0;padding:0;margin:0;box-shadow:none;background:none}
+.ce-g-crit .ce-fold-btn{display:none}
+.ce-g-crit .ce-crit-head>b{font-size:19px}
+.ce-g-crit.ce-saved .ce-slide-val{animation:ce-saved .8s ease-out;border-radius:6px}

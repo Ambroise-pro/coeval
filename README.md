@@ -76,7 +76,8 @@ fait pour qu’il n’ait rien à apprendre.
   La tablette doit être connectée la première fois pour enregistrer l’application.
 - **Mode guidé** (par défaut pour le co-évaluateur) : « Prochain passage » dans
   l’ordre de passage → une fiche avec les six critères sur le même écran, à noter
-  dans l’ordre voulu (une touche = degré + points ; un sommaire collant en haut
+  dans l’ordre voulu, avec le même curseur que l’écran évaluateur (cases de degré
+  au-dessus, points en dessous ; un sommaire collant en haut
   montre ce qui reste à noter) → « Valider · élève suivant » dès que les six sont
   notés. Un élève absent sort de la file d’un toucher. Le menu ⋯ donne
   accès à un autre élève, à l’envoi, à l’aide et à l’écran complet (le professeur

@@ -81,11 +81,15 @@ const SHOTS = process.env.SHOTS;
       await placeQuiz('amp', [1]);
       check(`[${label}] observation → amplitude placée`, (await ev(name)).ev.v.amp === 1 && (await ev(name)).ev.d.amp === 4);
       // … une touche pour la respiration …
-      await p.locator('#g-resp .ce-g-deg.d3 [data-act=g-set]').last().click();
-      check(`[${label}] une touche = degré + points`, (await ev(name)).ev.d.resp === 3 && (await ev(name)).ev.v.resp === .75);
+      const sl = p.locator('#g-resp .ce-slider');
+      await sl.evaluate(e => e.scrollIntoView({block: 'center'}));
+      const pt = await sl.evaluate(input => { const t = input.closest('.ce-slide').querySelector('.ce-slide-track').getBoundingClientRect(), b = input.getBoundingClientRect(); return {x: t.left + t.width * .6875, y: b.top + b.height / 2}; });
+      await p.mouse.click(pt.x, pt.y);
+      check(`[${label}] même curseur que l'écran évaluateur, sur chaque critère`, await p.locator('.ce-g-crit .ce-slider').count() === 6 && await p.locator('.ce-g-crit .ce-degbox').count() === 24);
+      check(`[${label}] une touche sur le curseur = degré + points`, (await ev(name)).ev.d.resp === 3 && (await ev(name)).ev.v.resp === .75);
       check(`[${label}] pas de changement d'écran`, await p.locator('.ce-g-crit').count() === 6 && (await p.textContent('.ce-g-nav')).includes('0,75'));
       // … le compteur de répétitions propose Posture et Choix des paramètres …
-      await p.locator('#g-post [data-act=g-reps]').click();
+      await p.locator('#g-post [data-act=reps-open]').click();
       for (const m of 'vvvvvcvvvv') await p.locator(`#ceDialog .ce-reps-btns [data-mark=${m}]`).click();
       await p.locator('#ceDialog [data-act=rep-series]').click();
       for (const m of 'vvvcvvvvx') await p.locator(`#ceDialog .ce-reps-btns [data-mark=${m}]`).click();
@@ -112,7 +116,7 @@ const SHOTS = process.env.SHOTS;
       // Choisir un élève : la fiche terminée s'ouvre au récapitulatif.
       await p.locator('.ce-g-row [data-act=g-choose]').click();
       await p.locator(`#ceDialog [data-act=g-pick]:has-text("${name}")`).click();
-      check(`[${label}] fiche terminée : en lecture seule, « Rouvrir »`, await p.locator('.ce-g-crit').count() === 6 && await p.locator('[data-act=reopen]').count() === 1 && await p.locator('.ce-g-crit [data-act=g-set]:disabled').count() > 20);
+      check(`[${label}] fiche terminée : en lecture seule, « Rouvrir »`, await p.locator('.ce-g-crit').count() === 6 && await p.locator('[data-act=reopen]').count() === 1 && await p.locator('.ce-g-crit .ce-slider:disabled').count() === 6);
       // 6 · Fin de séance : toutes les fiches terminées → envoyer.
       await p.evaluate(() => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); e.candidates.forEach(c => { const m = e.mine[c.id] || (e.mine[c.id] = {v: {}, d: {}}); m.done = true; }); localStorage.setItem('df-coeval-v1', JSON.stringify(db)); });
       await p.reload();

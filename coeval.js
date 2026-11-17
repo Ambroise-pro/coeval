@@ -474,23 +474,11 @@
     const locked = !!ev.done || !W.eligible(cand);
     const s = C.scores(ev);
     const filled = C.AFL1_IDS.filter(id => ev.v[id] != null).length;
+    // Même curseur que l'écran complet (cases de degré au-dessus, points en dessous),
+    // avec ses outils : observation, entretien, compteur, « Que regarder ? », justification.
     const card = id => {
       const crit = C.critById(id), value = ev.v[id], deg = C.degreeOf(crit, value, ev.d[id]), desc = C.descOf(crit, ev.role);
-      const kind = C.QUIZ_KIND[id];
-      const tool = kind ? `<button type="button" class="ce-g-toolbtn" data-act="quiz-open" data-crit="${id}">${kind === "observe" ? "👁 Observation" : "❓ Questions d'entretien"}</button>`
-        : `<button type="button" class="ce-g-toolbtn" data-act="g-reps" data-crit="${id}">🔢 Compteur</button>`;
-      return `<section class="ce-card ce-g-crit${value != null ? " filled" : ""}" data-crit="${id}" id="g-${id}">
-        <div class="ce-g-crit-head"><h3>${esc(crit.label)} <small>/${crit.max}</small></h3>
-          <strong class="ce-g-val${value != null ? " set" : ""}">${value != null ? `${esc(degreeLabel(crit, deg))} · ${fmt(value)}` : "à noter"}</strong></div>
-        <div class="ce-g-crit-tools">${tool}${tipsHTML(id, false)}</div>
-        <div class="ce-g-degs">${crit.deg.map((range, i) => {
-          const d = i + 1;
-          return `<div class="ce-g-deg d${d}${deg === d ? " on" : ""}"><b>${esc(crit.names ? crit.names[i] : "Degré " + d)}</b>
-            ${crit.key ? `<strong>${esc(crit.key[i])}</strong>` : ""}<span>${esc(desc[i])}</span>
-            <div class="ce-g-pts">${C.stepsOf(range).map(v => `<button type="button" class="${deg === d && value === v ? "on" : ""}" data-act="g-set" data-crit="${id}" data-d="${d}" data-v="${v}"${locked ? " disabled" : ""}>${fmt(v)}</button>`).join("")}</div></div>`;
-        }).join("")}</div>
-        ${justifHTML(crit, ev, locked).replace('<details class="ce-just"', '<details class="ce-just ce-g-just"')}
-      </section>`;
+      return `<section class="ce-card ce-g-crit${value != null ? " filled" : ""}" data-crit="${id}" id="g-${id}">${sliderHTML(crit, ev, value, deg, desc, "", locked)}</section>`;
     };
     // Sommaire : un toucher amène au critère ; on voit d'un coup d'œil ce qui reste à noter.
     const nav = `<nav class="ce-g-nav" aria-label="Critères">${C.AFL1_IDS.map(id => { const cr = C.critById(id), v = ev.v[id];
@@ -498,7 +486,7 @@
     return `<div class="ce-g-head"><button type="button" class="ce-g-back" data-act="g-step" data-step="start" aria-label="Retour">←</button>
         <div class="ce-g-who"><b>${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</b><small>${esc(THEMES[ev.theme] || "Mobile ?")}${ev.role ? " · " + esc(ROLES[ev.role]) : ""}${locked ? " · 🔒 terminée" : ""}</small></div></div>
       ${nav}
-      <p class="ce-hint ce-g-intro">Note les critères dans l'ordre que tu veux : une touche sur les points suffit.</p>
+      <p class="ce-hint ce-g-intro">Note les critères dans l'ordre que tu veux : touche ou fais glisser le curseur.</p>
       ${C.AFL1_IDS.map(card).join("")}
       <section class="ce-card ce-g-end"><details class="ce-more"${ev.comment ? " open" : ""}><summary>💬 Remarque (facultatif)</summary>
         <textarea data-field="comment" rows="2" aria-label="Remarque"${locked ? " readonly" : ""}>${esc(ev.comment)}</textarea></details></section>
@@ -542,7 +530,7 @@
   /* Démonstration de premier lancement : trois écrans, puis c'est parti. */
   const TOUR = [
     ["👋 Bienvenue", "Tu vas évaluer l'AFL1 des élèves, un par un, dans l'ordre de passage. Tout est enregistré sur cette tablette, même sans connexion."],
-    ["👆 Tous les critères sur un écran", "Note les six critères dans l'ordre que tu veux : une touche sur les points suffit. Le compteur de répétitions, l'observation et les questions d'entretien te proposent la note : tu confirmes."],
+    ["👆 Tous les critères sur un écran", "Note les six critères dans l'ordre que tu veux : touche le curseur sous les degrés. Le compteur de répétitions, l'observation et les questions d'entretien te proposent la note : tu confirmes."],
     ["✔ Valider puis envoyer", "Quand les six critères sont notés, valide la fiche : l'élève suivant s'affiche. À la fin, un bouton envoie tes évaluations au professeur."]
   ];
   function openTour(i = 0) {
