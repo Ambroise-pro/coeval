@@ -927,3 +927,33 @@ dialog.ce-quiz-dlg .ce-dialog{padding:0;max-height:calc(100dvh - 24px);overflow:
 .ce-g-crit .ce-fold-btn{display:none}
 .ce-g-crit .ce-crit-head>b{font-size:19px}
 .ce-g-crit.ce-saved .ce-slide-val{animation:ce-saved .8s ease-out;border-radius:6px}
+
+/* Mode guidé : liste des élèves toujours visible */
+.ce-guided main{max-width:1280px}
+.ce-g-layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:12px;align-items:start}
+.ce-g-list{position:sticky;top:8px;max-height:calc(100dvh - 16px);overflow:auto;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--ce-surface);border:1px solid var(--ce-border);border-radius:16px}
+.ce-g-item{display:flex;align-items:center;gap:8px;width:100%;min-height:48px;padding:6px 10px;border:0;border-radius:12px;background:none;text-align:left;font-size:15px;line-height:1.2}
+.ce-g-item i{flex:none;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-weight:800;font-size:13px;border:2px solid #cbd5e1;color:var(--ce-muted)}
+.ce-g-item span{flex:1;min-width:0;font-weight:700}
+.ce-g-item em{font-style:normal;color:var(--ce-muted);font-weight:600}
+.ce-g-item small{flex:none;color:var(--ce-muted);font-weight:700;font-size:12px}
+.ce-g-item.done i{background:#16a34a;border-color:#16a34a;color:#fff}
+.ce-g-item.done span{color:#166534}
+.ce-g-item.partial i{border-color:#f59e0b;color:#b45309}
+.ce-g-item.away{opacity:.55}
+.ce-g-item.away span{text-decoration:line-through}
+.ce-g-item.next{box-shadow:inset 0 0 0 2px #c7d2fe}
+.ce-g-item.current{background:var(--ce-primary);color:#fff}
+.ce-g-item.current span,.ce-g-item.current em,.ce-g-item.current small{color:#fff}
+.ce-g-item.current i{border-color:#fff;color:#fff}
+.ce-g-absent{flex:none;min-height:44px}
+.ce-g-main .ce-g-nav{top:0}
+@media (max-width:699px){
+  .ce-g-layout{grid-template-columns:minmax(0,1fr);gap:6px}
+  .ce-g-list{position:sticky;top:0;z-index:8;flex-direction:row;overflow-x:auto;overflow-y:hidden;max-height:none;padding:4px;border-radius:0 0 14px 14px;scrollbar-width:none}
+  .ce-g-list::-webkit-scrollbar{display:none}
+  .ce-g-item{flex:none;width:auto;min-height:44px;padding:4px 10px;font-size:14px}
+  .ce-g-item small{display:none}
+  .ce-g-main .ce-g-nav{top:52px}
+}
+@media (max-width:699px){ .ce-compact .ce-brand{min-width:0;overflow:hidden} .ce-compact .ce-header h1{overflow:hidden;text-overflow:ellipsis} }

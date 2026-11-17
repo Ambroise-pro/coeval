@@ -107,15 +107,18 @@ const SHOTS = process.env.SHOTS;
       if (SHOTS && w === 810) await p.screenshot({path: `${SHOTS}/7-fiche-complete.png`});
       await p.locator('[data-act=g-validate]').click();
       check(`[${label}] fiche validée (verrouillée)`, (await ev(name)).ev.done === true);
-      const next = (await p.textContent('.ce-g-name')).replace(/\s+TG\d.*$/, '').trim();
+      const who = async () => (await p.textContent('.ce-g-who b')).replace(/\s+TG\d.*$/, '').trim();
+      const next = await who();
+      check(`[${label}] après validation : fiche de l'élève suivant ouverte directement`, await p.locator('.ce-g-crit').count() === 6);
       check(`[${label}] élève suivant = n° 2`, next.startsWith('DUPONT'), next);
       check(`[${label}] avancement mis à jour`, (await p.textContent('.ce-g-progress')).includes('1/'));
       // Absent : sort de la file.
       await p.locator('[data-act=g-absent]').click();
-      check(`[${label}] « Absent » passe à l'élève suivant`, (await p.textContent('.ce-g-name')).replace(/\s+TG\d.*$/, '').trim() !== next);
-      // Choisir un élève : la fiche terminée s'ouvre au récapitulatif.
-      await p.locator('.ce-g-row [data-act=g-choose]').click();
-      await p.locator(`#ceDialog [data-act=g-pick]:has-text("${name}")`).click();
+      check(`[${label}] « Absent » passe à l'élève suivant`, (await who()) !== next && await p.locator(`.ce-g-item.away:has-text("${next}")`).count() === 1);
+      // Liste des élèves toujours visible : un toucher ouvre la fiche.
+      check(`[${label}] liste des élèves visible, statuts`, await p.locator('.ce-g-list').isVisible() && await p.locator('.ce-g-item').count() === 28
+        && await p.locator(`.ce-g-item.done:has-text("${name}")`).count() === 1 && await p.locator('.ce-g-item.current').count() === 1);
+      await p.locator(`.ce-g-item:has-text("${name}")`).click();
       check(`[${label}] fiche terminée : en lecture seule, « Rouvrir »`, await p.locator('.ce-g-crit').count() === 6 && await p.locator('[data-act=reopen]').count() === 1 && await p.locator('.ce-g-crit .ce-slider:disabled').count() === 6);
       // 6 · Fin de séance : toutes les fiches terminées → envoyer.
       await p.evaluate(() => { const db = CoEval.db, e = db.epreuves.find(x => x.id === db.activeId); e.candidates.forEach(c => { const m = e.mine[c.id] || (e.mine[c.id] = {v: {}, d: {}}); m.done = true; }); localStorage.setItem('df-coeval-v1', JSON.stringify(db)); });

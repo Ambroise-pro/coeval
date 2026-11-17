@@ -79,7 +79,9 @@ fait pour qu’il n’ait rien à apprendre.
   dans l’ordre voulu, avec le même curseur que l’écran évaluateur (cases de degré
   au-dessus, points en dessous ; un sommaire collant en haut
   montre ce qui reste à noter) → « Valider · élève suivant » dès que les six sont
-  notés. Un élève absent sort de la file d’un toucher. Le menu ⋯ donne
+  notés. La liste des élèves reste visible à gauche (bande en haut sur téléphone) :
+  un toucher ouvre la fiche de l’élève ; après validation, la fiche de l’élève
+  suivant s’ouvre directement. Un élève absent sort de la file d’un toucher. Le menu ⋯ donne
   accès à un autre élève, à l’envoi, à l’aide et à l’écran complet (le professeur
   peut aussi passer en mode guidé par le menu ⋯ de la fiche).
 - **Compteur de répétitions** (Posture, Choix des paramètres) : un toucher par

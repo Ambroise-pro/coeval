@@ -449,22 +449,37 @@
           <button type="button" data-act="g-mode" data-mode="full">🧰 Écran complet</button>
         </div></details></div>`;
     if (gstep == null) {
-      if (!queue.length) { main.innerHTML = top + guidedFinishedHTML(ep, done, elig.length); return; }
+      if (!queue.length) { main.innerHTML = guidedLayout(ep, top + guidedFinishedHTML(ep, done, elig.length)); return; }
       const ev = evalOf(ep, cand.id);
       const next = queue.filter(c => c !== cand).slice(0, 3);
       const started = C.AFL1_IDS.some(id => ev.v[id] != null);
-      main.innerHTML = top + `<section class="ce-card ce-g-hero">
+      main.innerHTML = guidedLayout(ep, top + `<section class="ce-card ce-g-hero">
         <p class="ce-g-kicker">Prochain passage${cand.order ? ` · n° ${cand.order}` : ""}</p>
         <h2 class="ce-g-name">${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</h2>
         <p class="ce-g-chips">${ev.theme ? `<span>${esc(THEMES[ev.theme])}</span>` : `<span class="warn">Mobile non renseigné</span>`}${ev.role ? `<span>${esc(ROLES[ev.role])}</span>` : ""}${ev.split ? `<span>AFL2-AFL3 ${esc(ev.split)}</span>` : ""}</p>
         ${ev.theme ? "" : `<div class="ce-choice"><span>Mobile</span>${Object.entries(THEMES).map(([k, v]) => `<button type="button" data-act="set" data-field="theme" data-value="${k}">${esc(v)}</button>`).join("")}</div>`}
         <button type="button" class="ce-primary ce-g-big" data-act="g-start">${started ? "▶ Reprendre l'évaluation" : "▶ Commencer l'évaluation"}</button>
-        <div class="ce-g-row"><button type="button" data-act="g-choose">👥 Un autre élève</button><button type="button" data-act="g-absent">Absent</button></div>
+        <div class="ce-g-row"><button type="button" data-act="g-absent">Absent</button></div>
         ${next.length ? `<p class="ce-g-next">Ensuite : ${next.map(c => esc(c.name)).join(" · ")}</p>` : ""}
-      </section>`;
+      </section>`);
       return;
     }
-    main.innerHTML = top + guidedSheetHTML(ep, cand);
+    main.innerHTML = guidedLayout(ep, top + guidedSheetHTML(ep, cand));
+  }
+
+  /* Liste des élèves toujours visible (à gauche ; bande en haut sur téléphone) :
+     un toucher ouvre directement la fiche de l'élève. */
+  function guidedLayout(ep, content) {
+    const list = W.candidates(ep);
+    const items = list.map(c => {
+      const e = C.get(ep.mine, c.id), elig = W.eligible(c);
+      const st = !elig ? "away" : e?.done ? "done" : C.AFL1_IDS.some(id => e?.v?.[id] != null) ? "partial" : "todo";
+      const icon = {away:"–", done:"✓", partial:"◐", todo:"○"}[st];
+      const label = !elig ? W.SITUATIONS[c.situation] : st === "done" ? `${fmt(C.scores(e).afl1)}/12` : st === "partial" ? `${C.AFL1_IDS.filter(id => e.v[id] != null).length}/6` : "";
+      return `<button type="button" class="ce-g-item ${st}${c.id === currentId && gstep != null ? " current" : ""}${c.id === currentId && gstep == null ? " next" : ""}" data-act="g-pick" data-id="${esc(c.id)}">
+        <i aria-hidden="true">${icon}</i><span>${c.order ? `<em>${c.order}.</em> ` : ""}${esc(c.name)}</span>${label ? `<small>${esc(label)}</small>` : ""}</button>`;
+    }).join("");
+    return `<div class="ce-g-layout"><aside class="ce-g-list" aria-label="Élèves">${items}</aside><div class="ce-g-main">${content}</div></div>`;
   }
 
   /* Fiche guidée : les six critères AFL1 sur un seul écran, à noter dans l'ordre voulu.
@@ -483,8 +498,9 @@
     // Sommaire : un toucher amène au critère ; on voit d'un coup d'œil ce qui reste à noter.
     const nav = `<nav class="ce-g-nav" aria-label="Critères">${C.AFL1_IDS.map(id => { const cr = C.critById(id), v = ev.v[id];
       return `<a href="#g-${id}" class="${v != null ? "filled" : ""}">${esc(cr.label.replace("Identification des ressentis", "Ressentis").replace("Régulation des paramètres", "Régulation").replace("Choix des paramètres", "Paramètres"))}<b>${v != null ? fmt(v) : "—"}</b></a>`; }).join("")}</nav>`;
-    return `<div class="ce-g-head"><button type="button" class="ce-g-back" data-act="g-step" data-step="start" aria-label="Retour">←</button>
-        <div class="ce-g-who"><b>${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</b><small>${esc(THEMES[ev.theme] || "Mobile ?")}${ev.role ? " · " + esc(ROLES[ev.role]) : ""}${locked ? " · 🔒 terminée" : ""}</small></div></div>
+    return `<div class="ce-g-head">
+        <div class="ce-g-who"><b>${esc(cand.name)}${cand.classroom ? ` <small>${esc(cand.classroom)}</small>` : ""}</b><small>${esc(THEMES[ev.theme] || "Mobile ?")}${ev.role ? " · " + esc(ROLES[ev.role]) : ""}${locked ? " · 🔒 terminée" : ""}</small></div>
+        ${locked ? "" : `<button type="button" class="ce-g-absent" data-act="g-absent">Absent</button>`}</div>
       ${nav}
       <p class="ce-hint ce-g-intro">Note les critères dans l'ordre que tu veux : touche ou fais glisser le curseur.</p>
       ${C.AFL1_IDS.map(card).join("")}
@@ -506,7 +522,7 @@
       ${special ? `<p>${special} élève(s) absent(s), dispensé(s) ou reporté(s).</p>` : ""}
       <p>Il reste à envoyer tes évaluations au professeur.</p>
       <button type="button" class="ce-primary ce-g-big" data-act="g-send">📤 Envoyer au professeur</button>
-      <div class="ce-g-row"><button type="button" data-act="g-choose">Revoir une fiche</button></div>
+      <p class="ce-hint">Pour revoir une fiche, touche le nom de l'élève dans la liste.</p>
     </section>`;
   }
 
@@ -2210,15 +2226,18 @@
         if (C.AFL1_IDS.some(id => e.v[id] == null)) { toast("Note d'abord tous les critères."); break; }
         finishEval(ep, cand);
         const next = passQueue(ep)[0];
-        currentId = next?.id || null; gstep = null; render(); window.scrollTo({top:0});
+        currentId = next?.id || null; gstep = next ? "sheet" : null; render(); window.scrollTo({top:0});
+        document.querySelector(".ce-g-item.current")?.scrollIntoView?.({block:"nearest", inline:"nearest"});
         toast(`✔ Fiche de ${cand.name} validée.${next ? ` Suivant : ${next.name}.` : ""}`);
         break;
       }
       case "g-choose": openGuidedChooser(ep); break;
-      case "g-pick": { currentId = el.dataset.id; closeDialog(); const e = C.get(ep.mine, currentId); gstep = e?.done ? "sheet" : null; render(); window.scrollTo({top:0}); break; }
+      case "g-pick": currentId = el.dataset.id; closeDialog(); gstep = "sheet"; render(); window.scrollTo({top:0}); document.querySelector(".ce-g-item.current")?.scrollIntoView?.({block:"nearest", inline:"nearest"}); break;
       case "g-absent":
         if (!cand || !confirm(`${cand.name} est absent ? L'élève sort de la file (ses notes éventuelles sont conservées).`)) break;
-        cand.situation = "absent"; cand.organizationAt = Date.now(); save(); gstep = null; currentId = null; render(); toast(`${cand.name} : absent.`); break;
+        cand.situation = "absent"; cand.organizationAt = Date.now(); save();
+        { const next = passQueue(ep)[0]; currentId = next?.id || null; gstep = next && gstep != null ? "sheet" : null; }
+        render(); window.scrollTo({top:0}); toast(`${cand.name} : absent.`); break;
       case "g-send": closeDialog(); tab = "send"; render(); window.scrollTo({top:0}); break;
       case "g-help": openTour(0); break;
       case "g-mode": setMode(ep, el.dataset.mode); render(); window.scrollTo({top:0}); break;
